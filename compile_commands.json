@@ -1,0 +1,20 @@
+[
+    {
+        "arguments": [
+            "g++",
+            "-c",
+            "-Wall",
+            "-Wextra",
+            "-g",
+            "-O1",
+            "-std=c++20",
+            "-march=native",
+            "-fcoroutines",
+            "-o",
+            "build/register.o",
+            "src/register.cpp"
+        ],
+        "directory": "/home/maxime/Code/C++/GameBoy",
+        "file": "src/register.cpp"
+    }
+]

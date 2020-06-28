@@ -1,0 +1,3 @@
+Attemps to have a cycle accurate GameBoy emulator.
+
+Implementation is trying to make use of cooperative multitask using C++20 coroutine.
