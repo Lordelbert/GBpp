@@ -375,6 +375,11 @@ constexpr auto LD(Register16 source, const Memory &memory) noexcept -> std::uint
 {
 	return memory[source];
 }
+constexpr auto LDH(Imm8 value, const Memory &memory) noexcept -> std::uint8_t
+{
+	return memory[compose(static_cast<uint8_t>(0xFF), value)];
+}
+
 
 constexpr auto LD(Register16 source) noexcept -> std::uint16_t { return source; }
 constexpr auto LD(Register16 source, Imm8 imm) noexcept

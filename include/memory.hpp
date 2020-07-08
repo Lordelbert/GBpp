@@ -2,8 +2,16 @@
 #define _MEMORY__HPP__
 #include "include_std.hpp"
 #include <cstdint>
+#include <iterator>
+
 class Memory {
 	std::array<uint8_t, 0xFFFF> m_memory;
+	inline static constexpr std::array<std::uint8_t, 47>
+	    Scrolling_Nintendo_Graphic{
+	        0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00,
+	        0x0C, 0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC,
+	        0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63, 0x6E,
+	        0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E};
 
   public:
 	enum Memory_map : uint16_t {
@@ -47,6 +55,26 @@ class Memory {
 		Serial_transfer_completion_it = 0x0058,
 		HtoL_P10_P13_it = 0x0060,
 	};
+
+	constexpr Memory()
+	{
+                // Nintendo graphics
+		std::move(std::begin(Scrolling_Nintendo_Graphic),
+                std::end(Scrolling_Nintendo_Graphic), &m_memory[0x0104]);
+                // name of the game if the name < static arry => 0
+                std::fill(&m_memory[0x0134], &m_memory[0x142], 0x0);
+                // color GB or not ?
+                m_memory[0x143] = 0x80;
+                // Has super Fonction
+                m_memory[0x146] = 0x00;
+                // Destination code Japanese (0) or not (1)
+                m_memory[0x14A] = 0;
+                // Licence code
+                // 33 -> ck 0144/0145 for Licensee code. (Super GB won't work)
+                // 79 -> Accolade
+                // A4 -> Konami
+                m_memory[0x14B] = 33;
+	}
 
 	constexpr auto operator[](uint16_t address) const noexcept -> uint8_t
 	{

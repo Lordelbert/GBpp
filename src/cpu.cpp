@@ -163,8 +163,8 @@ auto SM83::has_imm(uint8_t opcode) noexcept -> IMMEDIATE
 	return predicate;
 }
 namespace {
-constexpr auto nbr_to_reg(std::uint8_t nibble_lo, Register_bank& regbank, Memory &memory) noexcept
-    -> std::uint8_t*
+constexpr auto nbr_to_reg(std::uint8_t nibble_lo, Register_bank &regbank,
+                          Memory &memory) noexcept -> std::uint8_t *
 {
 	switch(nibble_lo % 7) {
 	case 0x0:
@@ -184,13 +184,13 @@ constexpr auto nbr_to_reg(std::uint8_t nibble_lo, Register_bank& regbank, Memory
 	case 0x7:
 		return &regbank.A;
 	}
-        return nullptr;
+	return nullptr;
 }
-}
+} // namespace
 auto SM83::extended_set(uint8_t opcode, Memory &memory) noexcept -> void
 {
 	const auto [hi, lo] = decompose(opcode);
-	auto* lhs = nbr_to_reg(lo, m_regbank, memory);
+	auto *lhs = nbr_to_reg(lo, m_regbank, memory);
 	switch(hi) {
 	case 0x0:
 		*lhs = (lo < 8) ? RLC(*lhs, m_regbank.F) : RRC(*lhs, m_regbank.F);
@@ -376,7 +376,7 @@ auto SM83::execute(uint8_t opcode, optional<uint16_t> imm, Memory &memory) noexc
 	}
 	case 0x22: {
 		const auto HL = compose(m_regbank.H, m_regbank.L);
-                memory[HL] = LD<Inc_HL>(m_regbank.A, m_regbank);
+		memory[HL] = LD<Inc_HL>(m_regbank.A, m_regbank);
 		break;
 	}
 	case 0x23: {
@@ -411,7 +411,7 @@ auto SM83::execute(uint8_t opcode, optional<uint16_t> imm, Memory &memory) noexc
 	}
 	case 0x2a: {
 		const auto HL = compose(m_regbank.H, m_regbank.L);
-                m_regbank.A = LD<Inc_HL>(HL, m_regbank);
+		m_regbank.A = LD<Inc_HL>(HL, m_regbank);
 		break;
 	}
 	case 0x2b: {
@@ -445,7 +445,7 @@ auto SM83::execute(uint8_t opcode, optional<uint16_t> imm, Memory &memory) noexc
 	}
 	case 0x32: {
 		const auto HL = compose(m_regbank.H, m_regbank.L);
-                memory[HL] = LD<Dec_HL>(m_regbank.A, m_regbank);
+		memory[HL] = LD<Dec_HL>(m_regbank.A, m_regbank);
 		break;
 	}
 	case 0x33: {
@@ -482,7 +482,7 @@ auto SM83::execute(uint8_t opcode, optional<uint16_t> imm, Memory &memory) noexc
 	}
 	case 0x3a: {
 		const auto HL = compose(m_regbank.H, m_regbank.L);
-                memory[HL] = LD<Inc_HL>(m_regbank.A, m_regbank);
+		memory[HL] = LD<Inc_HL>(m_regbank.A, m_regbank);
 		break;
 	}
 	case 0x3b: {
@@ -1154,6 +1154,8 @@ auto SM83::execute(uint8_t opcode, optional<uint16_t> imm, Memory &memory) noexc
 		break;
 	}
 	case 0xe0: {
+                const uint16_t addr =compose(static_cast<uint8_t>(0xFF), static_cast<uint8_t> (imm.value()));
+                memory[addr] = LD(m_regbank.A);
 		break;
 	}
 	case 0xe1: {
@@ -1161,7 +1163,8 @@ auto SM83::execute(uint8_t opcode, optional<uint16_t> imm, Memory &memory) noexc
 		break;
 	}
 	case 0xe2: {
-		memory[m_regbank.C] = LD(m_regbank.A, memory);
+                const uint16_t addr =compose(static_cast<uint8_t>(0xFF), m_regbank.C);
+                memory[addr] = LD(m_regbank.A);
 		break;
 	}
 	case 0xe3: {
@@ -1217,6 +1220,7 @@ auto SM83::execute(uint8_t opcode, optional<uint16_t> imm, Memory &memory) noexc
 		break;
 	}
 	case 0xf0: {
+                m_regbank.A = LDH(static_cast<uint8_t>(imm.value()), memory);
 		break;
 	}
 	case 0xf1: {
@@ -1224,7 +1228,8 @@ auto SM83::execute(uint8_t opcode, optional<uint16_t> imm, Memory &memory) noexc
 		break;
 	}
 	case 0xf2: {
-		m_regbank.A = LD(m_regbank.C, memory);
+
+                m_regbank.A = LDH(m_regbank.C, memory);
 		break;
 	}
 	case 0xf3: {
