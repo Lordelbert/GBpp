@@ -1,4 +1,5 @@
 *.o
 ./build
 emulator
+emulator_test
 .clangd

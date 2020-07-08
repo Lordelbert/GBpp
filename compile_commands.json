@@ -5,16 +5,18 @@
             "-c",
             "-Wall",
             "-Wextra",
+            "-W",
             "-g",
-            "-O1",
+            "-O0",
             "-std=c++20",
             "-march=native",
             "-fcoroutines",
+            "-I./include",
             "-o",
-            "build/register.o",
-            "src/register.cpp"
+            "build/cpu.o",
+            "src/cpu.cpp"
         ],
         "directory": "/home/maxime/Code/C++/GameBoy",
-        "file": "src/register.cpp"
+        "file": "src/cpu.cpp"
     }
 ]
