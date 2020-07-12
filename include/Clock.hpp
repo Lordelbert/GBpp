@@ -113,19 +113,6 @@ class Scheduler {
 	std::vector<Clock_domain *> _timer;
 	int _efd;
 };
-// empty task needed by coroutine framework
-// Indeeed when resuming to the caller with co_await we need to return
-// a type with a promise_type here it is void type.
-struct Void_task {
-	// needed for co_await promise type
-	struct promise_type {
-		Void_task get_return_object() { return {}; }
-		auto initial_suspend() { return std::suspend_never{}; }
-		auto final_suspend() { return std::suspend_never{}; }
-		void return_void() {}
-		void unhandled_exception() {}
-	};
-};
 
 // TODO Constexpr ?
 inline auto make_awaiter(const Clock_domain &clock, int cycle, int promise)

@@ -380,7 +380,6 @@ constexpr auto LDH(Imm8 value, const Memory &memory) noexcept -> std::uint8_t
 	return memory[compose(static_cast<uint8_t>(0xFF), value)];
 }
 
-
 constexpr auto LD(Register16 source) noexcept -> std::uint16_t { return source; }
 constexpr auto LD(Register16 source, Imm8 imm) noexcept
 {
@@ -507,15 +506,9 @@ constexpr auto RET(Register16 &PC, Register16 &SP, Memory &memory,
 		if(F.carry()) return RET(PC, SP, memory);
 }
 
-constexpr auto EI(Memory &memory) noexcept -> void
-{
-	memory.INTERUPT_ENABLE_REGISTER()[0] = true;
-}
+constexpr auto EI(Memory &memory) noexcept -> void { memory.write_IME(0x1F); }
 
-constexpr auto DI(Memory &memory) noexcept -> void
-{
-	memory.INTERUPT_ENABLE_REGISTER()[0] = false;
-}
+constexpr auto DI(Memory &memory) noexcept -> void { memory.write_IME(0b0); }
 constexpr auto RETI(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> void
 {
 	JP(PC, compose(POP(SP, memory)));
