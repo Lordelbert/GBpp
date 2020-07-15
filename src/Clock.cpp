@@ -16,7 +16,7 @@ auto Clock_domain::notify_edge() const -> void
 	                             [](const auto elt) { return (*elt).get_cycle() == 0; });
 
 	if((_edge_awaiter[0])->get_cycle() == 0) {
-                std::cout<<"Notifying Edge" << std::endl;
+		std::cout << "Notifying Edge" << std::endl;
 		auto resume_awaiter = std::span(std::begin(_edge_awaiter), end_it);
 		for(const auto it : resume_awaiter) {
 			it->coroutineHandle.resume();

@@ -24,13 +24,13 @@ class SM83 {
 
 	auto dump(std::ostream &cout) -> void;
 	[[nodiscard]] auto has_imm(std::uint8_t op) noexcept -> IMMEDIATE;
-	[[nodiscard]] auto fetch(const Memory &memory) -> sink<uint8_t>;
+	[[nodiscard]] auto fetch(const Memory &memory) -> task<uint8_t>;
 	[[nodiscard]] auto fetch_ovelap(const Memory &memory) noexcept -> uint8_t;
-	[[nodiscard]] auto fetch_imm8(const Memory &memory) -> sink<uint8_t>;
-	[[nodiscard]] auto fetch_imm16(const Memory &memory) -> sink<uint16_t>;
-	auto interrupt_handler(Memory &memory) -> sink<void>;
+	[[nodiscard]] auto fetch_imm8(const Memory &memory) -> task<uint8_t>;
+	[[nodiscard]] auto fetch_imm16(const Memory &memory) -> task<uint16_t>;
+	auto interrupt_handler(Memory &memory) -> task<void>;
 
-	auto execute(std::uint8_t, Memory &) noexcept -> sink<void>;
+	auto execute(std::uint8_t, Memory &) noexcept -> task<void>;
 	auto extended_set(uint8_t opcode, Memory &memory) noexcept -> void;
 	auto run(Memory &) -> Dummy_coro;
 };

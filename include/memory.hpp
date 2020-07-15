@@ -1,11 +1,19 @@
 #ifndef _MEMORY__HPP__
 #define _MEMORY__HPP__
+#include "Cartridge.hpp"
+#include "Clock.hpp"
+#include "Coroutine.hpp"
 #include "include_std.hpp"
 #include <cstdint>
+#include <initializer_list>
 #include <iterator>
 
 class Memory {
+
 	std::array<std::uint8_t, 0xFFFF> m_memory;
+	Cartridge<ROM_MBC1> m_game;
+	const Clock_domain &m_clock;
+
 	inline static constexpr std::array<std::uint8_t, 47> Scrolling_Nintendo_Graphic{
 	    0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00,
 	    0x0C, 0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC,
@@ -55,7 +63,8 @@ class Memory {
 		HtoL_P10_P13_it = 0x0060,
 	};
 
-	constexpr Memory()
+	Memory(const Clock_domain &clock, std::vector<std::uint8_t> rom)
+	    : m_game{rom}, m_clock{clock}
 	{
 		// Nintendo graphics
 		std::move(std::begin(Scrolling_Nintendo_Graphic),
@@ -75,23 +84,12 @@ class Memory {
 		m_memory[0x14B] = 33;
 	}
 
-	constexpr auto operator[](uint16_t address) const noexcept -> std::uint8_t
-	{
-		return m_memory[address];
-	}
-	constexpr auto operator[](uint16_t address) noexcept -> std::uint8_t &
-	{
-		return m_memory[address];
-	}
+	auto read(uint16_t addr) const noexcept -> task<std::uint8_t>;
+	// use when fetch overlap execute
+	auto read_nowait(uint16_t addr) const noexcept -> std::uint8_t;
+        auto write(uint16_t addr, std::uint8_t value) noexcept -> task<void>;
+	auto write_IME(std::uint8_t value) -> task<void>;
 
-	constexpr auto ROM0() noexcept -> std::span<std::uint8_t>
-	{
-		return std::span{&m_memory[0], IRAM0_ul - IRAM0_base};
-	}
-	constexpr auto ROM1() noexcept -> std::span<std::uint8_t>
-	{
-		return std::span{&m_memory[IROM1_base], IROM1_ul - IROM1_base};
-	}
 	constexpr auto VRAM() noexcept -> std::span<std::uint8_t>
 	{
 		return std::span{&m_memory[IROM0_base], VRAM_ul - IROM0_base};
@@ -124,25 +122,10 @@ class Memory {
 	{
 		return std::span{&m_memory[EMPTY_AIO_base], EMPTY_AIO_ul - EMPTY_AIO_base};
 	}
-	constexpr auto IRAM1() noexcept -> std::span<std::uint8_t>
-	{
-		return std::span{&m_memory[IRAM1_base], IRAM1_ul - IRAM1_base};
-	}
 	constexpr auto IME() const noexcept -> std::uint8_t
 	{
 		return m_memory[IME_base] & 0x1F;
 	}
-	constexpr auto write_IRAM1(std::uint16_t addr, std::uint8_t value)
-	{
-		IRAM1()[addr - IRAM1_base] = value;
-	}
-	constexpr auto write_IRAM0(std::uint16_t addr, std::uint8_t value)
-	{
-		addr -= (addr > IRAM0_E_base) ? IRAM0_E_base : IRAM0_base;
-		IRAM0()[addr] = value;
-		IRAM0_ECHO()[addr] = value;
-	}
-	constexpr auto write_IME(std::uint8_t value) { m_memory[IME_base] = value & 0x1F; }
 	constexpr auto IE() const noexcept { return m_memory[0xFF0F]; }
 };
 

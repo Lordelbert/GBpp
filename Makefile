@@ -7,10 +7,10 @@ EXE=emulator
 EXE_TEST=emulator_test
 
 CXX=g++
-CXXFLAGS+=-Wall -Wextra -W -O2 -std=c++20 -march=native -fcoroutines
+CXXFLAGS+=-Wall -Wextra -W -O2 -std=c++20 -march=native -ffunction-sections -fdata-sections -flto -fcoroutines
 INCLUDE+=-I./include
 INCLUDE_TEST+=-I/usr/include/catch2
-LDFLAGS=
+LDFLAGS=-flto -Wl,--gc-sections
 
 OBJDIR=build
 OBJ= $(patsubst %.cpp, $(OBJDIR)/%.o,$(notdir $(SRC)))

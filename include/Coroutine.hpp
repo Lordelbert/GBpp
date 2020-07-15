@@ -16,22 +16,23 @@ struct Dummy_coro {
 #include <exception>
 #include <variant>
 
-template <class T> struct sink {
+template <class T> struct task {
 	struct promise_type {
 		// the coroutine which have call co_await
 		std::variant<std::monostate, T, std::exception_ptr> result_;
 		std::coroutine_handle<void> waiter_;
 
-		sink get_return_object() { return sink(this); }
-                // triggered only if co_await is called
-                // see co_await for the call to resume
+		task get_return_object() { return task(this); }
+		// triggered only if co_await is called
+		// see co_await for the call to resume
 		auto initial_suspend() { return std::suspend_always{}; }
 		auto final_suspend()
 		{
 			struct Awaiter {
 				promise_type *me_;
 				bool await_ready() { return false; }
-                                void await_suspend(std::coroutine_handle<void> caller) {
+				void await_suspend([[maybe_unused]] std::coroutine_handle<void> caller)
+				{
 					me_->waiter_.resume();
 				}
 				void await_resume() {}
@@ -51,11 +52,11 @@ template <class T> struct sink {
 	// force calling await suspend and then since suspend return void return to caller
 	bool await_ready() { return false; }
 	// Return value
-	// so that auto result = co_await sink
+	// so that auto result = co_await task
 	void await_suspend(std::coroutine_handle<void> caller)
 	{
 		coro_.promise().waiter_ = caller;
-                coro_.resume();
+		coro_.resume();
 	}
 	T await_resume()
 	{
@@ -65,29 +66,30 @@ template <class T> struct sink {
 		return std::get<1>(coro_.promise().result_);
 	}
 
-	~sink() { coro_.destroy(); }
+	~task() { coro_.destroy(); }
 
   private:
 	using handle_t = std::coroutine_handle<promise_type>;
-	sink(promise_type *p) : coro_(handle_t::from_promise(*p)) {}
+	task(promise_type *p) : coro_(handle_t::from_promise(*p)) {}
 	// the current coroutine
 	handle_t coro_;
 };
 
-template <> struct sink<void> {
+template <> struct task<void> {
 	struct promise_type {
 		// the coroutine which have call co_await
 		std::exception_ptr result_;
 		std::coroutine_handle<void> waiter_;
 
-		sink get_return_object() { return sink(this); }
+		task get_return_object() { return task(this); }
 		auto initial_suspend() { return std::suspend_always{}; }
 		auto final_suspend()
 		{
 			struct Awaiter {
 				promise_type *me_;
 				bool await_ready() { return false; }
-                                void await_suspend(std::coroutine_handle<void> caller) {
+				void await_suspend([[maybe_unused]] std::coroutine_handle<void> caller)
+				{
 					me_->waiter_.resume();
 				}
 				void await_resume() {}
@@ -100,11 +102,11 @@ template <> struct sink<void> {
 	// force calling await suspend and then since suspend return void return to caller
 	bool await_ready() { return false; }
 	// Return value
-	// so that auto result = co_await sink
+	// so that auto result = co_await task
 	void await_suspend(std::coroutine_handle<void> caller)
 	{
 		coro_.promise().waiter_ = caller;
-                coro_.resume();
+		coro_.resume();
 	}
 	void await_resume()
 	{
@@ -114,11 +116,11 @@ template <> struct sink<void> {
 		return;
 	}
 
-	~sink() { coro_.destroy(); }
+	~task() { coro_.destroy(); }
 
   private:
 	using handle_t = std::coroutine_handle<promise_type>;
-	sink(promise_type *p) : coro_(handle_t::from_promise(*p)) {}
+	task(promise_type *p) : coro_(handle_t::from_promise(*p)) {}
 	// the current coroutine ?
 	handle_t coro_;
 };

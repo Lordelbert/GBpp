@@ -180,16 +180,8 @@ template <Unsigned T> constexpr auto INC(T source, Flag_register &F) noexcept ->
 	return tmp;
 }
 
-constexpr auto INC(Register16 source, Flag_register &F, const Memory &memory) noexcept
-    -> Register8
-{
-	F.clear_substract();
-	if(((source & 0b1111) + (0b1)) > 0b1111) F.set_half_carry();
-
-	const Register16 tmp = memory[source] + 1;
-	if(tmp == 0) F.set_zero();
-	return tmp;
-}
+auto INC(Register16 source, Flag_register &F, const Memory &memory) noexcept
+    -> task<Register8>;
 
 template <Unsigned T> constexpr auto DEC(T source, Flag_register &F) noexcept -> T
 {
@@ -201,16 +193,8 @@ template <Unsigned T> constexpr auto DEC(T source, Flag_register &F) noexcept ->
 	return tmp;
 }
 
-constexpr auto DEC(Register16 source, Flag_register &F, const Memory &memory) noexcept
-    -> Register8
-{
-	F.clear_substract();
-	if(((source & 0b1111) + (0b1)) > 0b1111) F.set_half_carry();
-
-	const Register16 tmp = memory[source] - 1;
-	if(tmp == 0) F.set_zero();
-	return tmp;
-}
+auto DEC(Register16 source, Flag_register &F, const Memory &memory) noexcept
+    -> task<Register8>;
 
 constexpr auto SWAP(Register8 source, Flag_register &F) noexcept -> std::uint8_t
 {
@@ -358,26 +342,25 @@ constexpr auto DAA(Register8 A, Flag_register &F) -> Register8
 /*************************** Memory *********************************/
 constexpr auto LD(Register8 source) noexcept -> Register8 { return source; }
 template <class HL_Policy>
-constexpr auto LD(Register16 source, const Memory &memory,
-                  Register_bank &reg_bank) noexcept -> std::uint8_t
+inline auto LD(Register16 source, const Memory &memory, Register_bank &reg_bank) noexcept
 {
 	HL_Policy{}(reg_bank);
-	return memory[source];
+	return memory.read(source);
 }
 
 template <class HL_Policy>
-constexpr auto LD(Register16 source, Register_bank &reg_bank) noexcept -> std::uint8_t
+constexpr auto LD(Register16 source, Register_bank &reg_bank) noexcept
 {
 	HL_Policy{}(reg_bank);
 	return source;
 }
-constexpr auto LD(Register16 source, const Memory &memory) noexcept -> std::uint8_t
+inline auto LD(Register16 source, const Memory &memory) noexcept
 {
-	return memory[source];
+	return memory.read(source);
 }
-constexpr auto LDH(Imm8 value, const Memory &memory) noexcept -> std::uint8_t
+inline auto LDH(Imm8 value, const Memory &memory) noexcept
 {
-	return memory[compose(static_cast<uint8_t>(0xFF), value)];
+	return memory.read(compose(static_cast<uint8_t>(0xFF), value));
 }
 
 constexpr auto LD(Register16 source) noexcept -> std::uint16_t { return source; }
@@ -428,92 +411,48 @@ constexpr auto JR(Register16 &PC, Imm8_s add, Flag_register F) noexcept -> void
 	if constexpr(cc == NC)
 		if(F.carry()) return JR(PC, add);
 }
-constexpr auto _dec(Register16 &value) noexcept { return --value; }
-constexpr auto _inc(Register16 &value) noexcept { return ++value; }
-constexpr auto PUSH(Register16 &SP, Memory &memory, Register16 value) noexcept -> void
-{
-	std::tie(memory[_dec(SP)], memory[_dec(SP)]) = decompose(value);
-}
 
-constexpr auto POP(Register16 &SP, const Memory &memory) noexcept
-    -> std::pair<std::uint8_t, std::uint8_t>
-{
-	const auto val = std::make_pair(memory[SP], memory[_inc(SP)]);
-	++SP;
-	return val;
-}
-
-constexpr auto RET(Register16 &PC, Register16 &SP, const Memory &memory) noexcept -> void
-{
-	PC = compose(POP(SP, memory));
-}
-
+auto PUSH(Register16 &SP, Memory &memory, Register16 value) noexcept -> task<void>;
+auto POP(Register16 &SP, const Memory &memory) noexcept
+    -> task<std::pair<std::uint8_t, std::uint8_t>>;
+auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory) noexcept
+    -> task<void>;
 template <FLAG cc>
-constexpr auto RET(Register16 &PC, Register16 &SP, Flag_register F,
-                   const Memory &memory) noexcept -> void
+auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory,
+          Flag_register F) noexcept -> task<void>
 {
-	if constexpr(cc == Z)
-		if(not F.zero()) return RET(PC, SP, memory);
-	if constexpr(cc == C)
-		if(not F.carry()) return RET(PC, SP, memory);
-	if constexpr(cc == NZ)
-		if(F.zero()) return RET(PC, SP, memory);
 	if constexpr(cc == NC)
-		if(F.carry()) return RET(PC, SP, memory);
+		if(not F.zero()) co_await CALL(PC, SP, addr, memory);
+	if constexpr(cc == C)
+		if(not F.carry()) co_await CALL(PC, SP, addr, memory);
+	if constexpr(cc == NZ)
+		if(F.zero()) co_await CALL(PC, SP, addr, memory);
+	if constexpr(cc == NC)
+		if(F.carry()) co_await CALL(PC, SP, addr, memory);
+	co_return;
 }
-constexpr auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory) noexcept
-    -> void
-{
-	PUSH(SP, memory, PC);
-	return JP(PC, addr);
-}
-
+auto RST(Register16 &PC, Register16 &SP, Imm8 addr, Memory &memory) noexcept
+    -> task<void>;
+auto RET(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> task<void>;
 template <FLAG cc>
-constexpr auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory,
-                    Flag_register F) noexcept -> void
+auto RET(Register16 &PC, Register16 &SP, Memory &memory, Flag_register F) noexcept
+    -> task<void>
 {
 	if constexpr(cc == NC)
-		if(not F.zero()) return CALL(PC, SP, addr, memory);
+		if(not F.zero()) co_await RET(PC, SP, memory);
 	if constexpr(cc == C)
-		if(not F.carry()) return CALL(PC, SP, addr, memory);
+		if(not F.carry()) co_await RET(PC, SP, memory);
 	if constexpr(cc == NZ)
-		if(F.zero()) return CALL(PC, SP, addr, memory);
+		if(F.zero()) co_await RET(PC, SP, memory);
 	if constexpr(cc == NC)
-		if(F.carry()) return CALL(PC, SP, addr, memory);
-}
-constexpr auto RST(Register16 &PC, Register16 &SP, Imm8 addr, Memory &memory) noexcept
-    -> void
-{
-	PUSH(SP, memory, PC);
-	return JP(PC, addr);
-}
-constexpr auto RET(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> void
-{
-	return JP(PC, compose(POP(SP, memory)));
+		if(F.carry()) co_await RET(PC, SP, memory);
+	co_return;
 }
 
-template <FLAG cc>
-constexpr auto RET(Register16 &PC, Register16 &SP, Memory &memory,
-                   Flag_register F) noexcept -> void
-{
-	if constexpr(cc == NC)
-		if(not F.zero()) return RET(PC, SP, memory);
-	if constexpr(cc == C)
-		if(not F.carry()) return RET(PC, SP, memory);
-	if constexpr(cc == NZ)
-		if(F.zero()) return RET(PC, SP, memory);
-	if constexpr(cc == NC)
-		if(F.carry()) return RET(PC, SP, memory);
-}
 
-constexpr auto EI(Memory &memory) noexcept -> void { memory.write_IME(0x1F); }
-
-constexpr auto DI(Memory &memory) noexcept -> void { memory.write_IME(0b0); }
-constexpr auto RETI(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> void
-{
-	JP(PC, compose(POP(SP, memory)));
-	return EI(memory);
-}
+auto EI(Memory &memory) noexcept -> task<void>;
+auto DI(Memory &memory) noexcept -> task<void>;
+auto RETI(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> task<void>;
 
 /*************************** Other *********************************/
 constexpr auto NOOP() noexcept -> void { return; }
