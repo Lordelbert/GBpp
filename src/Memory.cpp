@@ -23,7 +23,7 @@ auto Memory::read_nowait(uint16_t addr) const noexcept -> std::uint8_t
 auto Memory::write(uint16_t addr, std::uint8_t value) noexcept -> task<void>
 {
 	if(addr < IROM1_ul or (addr > IRAM1_base and addr < IRAM1_ul)) {
-                m_game->write(addr,value);
+		m_game->write(addr, value);
 	}
 	else {
 		m_memory[addr] = value;
