@@ -42,7 +42,7 @@ class MBC {
 	static inline constexpr size_t g_ram_bank_size = 8_kB;
 
   protected:
-        using rom_bank = std::span<const std::uint8_t, g_ram_bank_size>;
+        using rom_bank = std::span<const std::uint8_t, g_rom_bank_size>;
 	std::span<std::uint8_t, g_ram_bank_size> m_IRAM;
 	rom_bank m_IROM0;
 	rom_bank m_IROM1;
@@ -56,11 +56,11 @@ class MBC {
   public:
 	MBC(std::vector<std::uint8_t> prog, size_t ram)
 	    : m_rom_bank(prog), rd(), m_IRAM(m_ram_bank), m_IROM0(m_rom_bank),
-	      m_IROM1(window<g_rom_bank_size>(m_rom_bank, g_rom_bank_size)),
+	      m_IROM1(std::span{&m_rom_bank[g_rom_bank_size], g_rom_bank_size}),
               m_gen(rd()), m_distrib(0, 255)
 	{
                 if(prog.size() > 2_MB) {
-                    throw std::out_of_range("MBC1 is unable to manage more that 2MBytes");
+                    throw std::out_of_range("MBC1 is unable to manage more than 2MBytes");
                 }
 		// clang-format off
                 m_ram_bank.reserve(ram);

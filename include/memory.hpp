@@ -10,7 +10,7 @@
 #include <iterator>
 
 class Memory {
-	std::array<std::uint8_t, 0xFFFF> m_memory;
+	std::array<std::uint8_t, 64_kB> m_memory; // 0x0 - 0xFFFF
 	std::unique_ptr<MBC> m_game;
 	const Clock_domain &m_clock;
 

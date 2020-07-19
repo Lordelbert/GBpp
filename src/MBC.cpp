@@ -52,7 +52,8 @@ auto MBC1::read_ram(std::uint16_t addr) const noexcept -> std::uint8_t {
 }
 auto MBC1::read(std::uint16_t address) const noexcept -> std::uint8_t
 {
-	return (address < 0xA000) ? m_IROM1[address] : read_ram(address);
+	return (address < 0xA000) ? (address < 0x4000) ? m_IROM0[address] : m_IROM1[address]
+                                                                          : read_ram(address);
 }
 auto MBC1::write(std::uint16_t address, std::uint8_t value) -> void
 {
