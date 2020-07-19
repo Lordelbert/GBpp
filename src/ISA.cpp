@@ -1,9 +1,9 @@
 #include <ISA.hpp>
 namespace ISA {
 namespace {
-    constexpr auto _dec(Register16 &value) noexcept { return --value; }
-    constexpr auto _inc(Register16 &value) noexcept { return ++value; }
-}
+constexpr auto _dec(Register16 &value) noexcept { return --value; }
+constexpr auto _inc(Register16 &value) noexcept { return ++value; }
+} // namespace
 auto INC(Register16 source, Flag_register &F, const Memory &memory) noexcept
     -> task<Register8>
 {

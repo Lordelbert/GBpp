@@ -449,7 +449,6 @@ auto RET(Register16 &PC, Register16 &SP, Memory &memory, Flag_register F) noexce
 	co_return;
 }
 
-
 auto EI(Memory &memory) noexcept -> task<void>;
 auto DI(Memory &memory) noexcept -> task<void>;
 auto RETI(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> task<void>;

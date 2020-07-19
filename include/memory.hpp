@@ -1,17 +1,17 @@
 #ifndef _MEMORY__HPP__
 #define _MEMORY__HPP__
-#include "Cartridge.hpp"
 #include "Clock.hpp"
 #include "Coroutine.hpp"
+#include "MBC.hpp"
 #include "include_std.hpp"
 #include <cstdint>
+#include <memory>
 #include <initializer_list>
 #include <iterator>
 
 class Memory {
-
 	std::array<std::uint8_t, 0xFFFF> m_memory;
-	Cartridge<ROM_MBC1> m_game;
+	std::unique_ptr<MBC> m_game;
 	const Clock_domain &m_clock;
 
 	inline static constexpr std::array<std::uint8_t, 47> Scrolling_Nintendo_Graphic{
@@ -63,9 +63,9 @@ class Memory {
 		HtoL_P10_P13_it = 0x0060,
 	};
 
-	Memory(const Clock_domain &clock, std::vector<std::uint8_t> rom)
-	    : m_game{rom}, m_clock{clock}
+	Memory(const Clock_domain &clock, std::vector<std::uint8_t> rom) : m_clock{clock}
 	{
+		m_game = std::make_unique<MBC1>(rom, 32_kB);
 		// Nintendo graphics
 		std::move(std::begin(Scrolling_Nintendo_Graphic),
 		          std::end(Scrolling_Nintendo_Graphic), &m_memory[0x0104]);
@@ -87,7 +87,7 @@ class Memory {
 	auto read(uint16_t addr) const noexcept -> task<std::uint8_t>;
 	// use when fetch overlap execute
 	auto read_nowait(uint16_t addr) const noexcept -> std::uint8_t;
-        auto write(uint16_t addr, std::uint8_t value) noexcept -> task<void>;
+	auto write(uint16_t addr, std::uint8_t value) noexcept -> task<void>;
 	auto write_IME(std::uint8_t value) -> task<void>;
 
 	constexpr auto VRAM() noexcept -> std::span<std::uint8_t>

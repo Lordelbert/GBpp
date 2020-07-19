@@ -4,6 +4,15 @@
 #include "trait.hpp"
 #include <utility>
 
+constexpr size_t operator"" _MB(unsigned long long int frequency)
+{
+	return frequency * 1'048'576;
+}
+constexpr size_t operator"" _kB(unsigned long long int frequency)
+{
+	return frequency * 1024;
+}
+
 template <Unsigned T> constexpr auto get_bit(T val, size_t pos) noexcept -> std::uint8_t
 {
 	return (val >> pos) & 0b1;
