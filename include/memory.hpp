@@ -12,7 +12,6 @@
 class Memory {
 	std::array<std::uint8_t, 64_kB> m_memory; // 0x0 - 0xFFFF
 	std::unique_ptr<MBC> m_game;
-	const Clock_domain &m_clock;
 
 	inline static constexpr std::array<std::uint8_t, 47> Scrolling_Nintendo_Graphic{
 	    0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00,
@@ -63,7 +62,7 @@ class Memory {
 		HtoL_P10_P13_it = 0x0060,
 	};
 
-	Memory(const Clock_domain &clock, std::vector<std::uint8_t> rom) : m_clock{clock}
+	Memory(std::vector<std::uint8_t> rom)
 	{
 		m_game = std::make_unique<MBC1>(rom, 32_kB);
 		// Nintendo graphics
@@ -84,11 +83,41 @@ class Memory {
 		m_memory[0x14B] = 33;
 	}
 
-	auto read(uint16_t addr) const noexcept -> task<std::uint8_t>;
-	// use when fetch overlap execute
-	auto read_nowait(uint16_t addr) const noexcept -> std::uint8_t;
-	auto write(uint16_t addr, std::uint8_t value) noexcept -> task<void>;
-	auto write_IME(std::uint8_t value) -> task<void>;
+        constexpr auto read(uint16_t addr) const noexcept -> std::uint8_t
+        {
+            if(addr < IROM1_ul or (addr > IRAM1_base and addr < IRAM1_ul)) {
+                return m_game->read(addr);
+            }
+            else {
+                return m_memory[addr];
+            }
+        }
+        // use when fetch overlap execute
+        constexpr auto read_nowait(uint16_t addr) const noexcept -> std::uint8_t
+        {
+            if(addr < IROM1_ul or (addr > IRAM1_base and addr < IRAM1_ul)) {
+                return m_game->read(addr);
+            }
+            else {
+                return m_memory[addr];
+            }
+        }
+
+        constexpr auto write(uint16_t addr, std::uint8_t value) noexcept -> void
+        {
+            if(addr < IROM1_ul or (addr > IRAM1_base and addr < IRAM1_ul)) {
+                m_game->write(addr, value);
+            }
+            else {
+                m_memory[addr] = value;
+            }
+            return;
+        }
+        constexpr auto write_IME(std::uint8_t value) -> void
+        {
+            write(IME_base, value & 0x1F);
+            return;
+        }
 
 	constexpr auto VRAM() noexcept -> std::span<std::uint8_t>
 	{

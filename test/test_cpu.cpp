@@ -1,4 +1,7 @@
+#include "catch.hpp"
+
 #include "Clock.hpp"
+#include "Coroutine.hpp"
 #include "ISA.hpp"
 #include "bit_manipulation.hpp"
 #include "cpu.hpp"
@@ -10,9 +13,6 @@
 #include <type_traits>
 
 using namespace ISA;
-
-#define CATCH_CONFIG_MAIN
-#include "catch.hpp"
 
 TEST_CASE("FLAG Register behaviour", "[Flag]")
 {
@@ -643,10 +643,8 @@ TEST_CASE("ARTIHMETIC_INSTRUCTION", "[Arithmetic]")
 }
 TEST_CASE("LOAD_INSTRUCTION", "[LOAD]")
 {
-    Memory memory{};
-    const auto rom = memory.ROM0();
-    std::fill(std::begin(rom), std::end(rom), 0xFF);
-    Clock_domain clock_cpu{1_Mhz};
+    auto prog = std::vector<std::uint8_t>(32_kB, 0xFF);
+    Memory memory{prog};
 
     SECTION("LD Register8 to Register")
     {
@@ -673,9 +671,10 @@ TEST_CASE("Control_Flow_INSTRUCTION", "[CF]") {
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_int_distribution distrib(0, 0xFFFF);
+        auto prog = std::vector<std::uint8_t>(32_kB, 0xFF);
 
         SECTION("PUSH") {
-            Memory memory{};
+            Memory memory{prog};
             const auto ram = memory.IRAM0();
             std::fill(std::begin(ram), std::end(ram), 0xFFFF);
 
@@ -685,11 +684,11 @@ TEST_CASE("Control_Flow_INSTRUCTION", "[CF]") {
             PUSH(SP, memory, value);
 
             REQUIRE(SP == Memory::IRAM0_ul-2);
-            REQUIRE(memory[Memory::IRAM0_ul-1] == lo);
-            REQUIRE(memory[Memory::IRAM0_ul-2] == hi);
+            REQUIRE(memory.read(Memory::IRAM0_ul-1) == lo);
+            REQUIRE(memory.read(Memory::IRAM0_ul-2) == hi);
         }
         SECTION("POP") {
-            Memory memory{};
+            Memory memory{prog};
             const auto ram = memory.IRAM0();
             std::fill(std::begin(ram), std::end(ram), 0xA5);
 

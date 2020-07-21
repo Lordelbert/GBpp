@@ -26,7 +26,7 @@ auto SM83::dump(ostream &cout) -> void
 
 [[nodiscard]] auto SM83::fetch(const Memory &memory) -> task<uint8_t>
 {
-	co_return co_await memory.read(m_regbank.PC++);
+	co_return co_await await<1>(m_clock, &Memory::read, std::cref(memory), m_regbank.PC++);
 }
 [[nodiscard]] auto SM83::fetch_ovelap(const Memory &memory) noexcept -> uint8_t
 {
@@ -35,23 +35,21 @@ auto SM83::dump(ostream &cout) -> void
 
 [[nodiscard]] auto SM83::fetch_imm8(const Memory &memory) -> task<uint8_t>
 {
-	co_return co_await memory.read(m_regbank.PC++);
+	co_return co_await await<1>(m_clock, &Memory::read, std::cref(memory), m_regbank.PC++);
 }
 
 [[nodiscard]] auto SM83::fetch_imm16(const Memory &memory) -> task<uint16_t>
 {
-	const uint8_t lo = co_await memory.read(m_regbank.PC++);
-	const uint16_t hi = co_await memory.read(m_regbank.PC++);
+	const uint8_t lo =  co_await await<1>(m_clock, &Memory::read, std::cref(memory), m_regbank.PC++);
+	const uint8_t hi = co_await await<1>(m_clock, &Memory::read, std::cref(memory), m_regbank.PC++);
 	co_return(hi << 4) | lo;
 }
 auto SM83::interrupt_handler(Memory &memory) -> task<void>
 {
 	// disable it
 	memory.write_IME(0x0);
-	co_await PUSH(m_regbank.SP, memory, m_regbank.PC);
-	co_await make_awaiter(m_clock, 1);
-	JP(m_regbank.PC, ((memory.IE() & 5) * 0x8) + 0x40);
-	co_await make_awaiter(m_clock, 1);
+	co_await await<1>(m_clock, PUSH, m_regbank.SP, memory, m_regbank.PC);
+	//co_await await<1>(m_clock,  JP, m_regbank.PC, ((memory.IE() & 5) * 0x8) + 0x40);
 	co_return;
 }
 
@@ -242,7 +240,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x02: {
-		co_await memory.write(compose(m_regbank.B, m_regbank.C), LD(m_regbank.A));
+		memory.write(compose(m_regbank.B, m_regbank.C), LD(m_regbank.A));
 		break;
 	}
 	case 0x03: {
@@ -251,7 +249,8 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x04: {
-		m_regbank.B = INC(m_regbank.B, m_regbank.F);
+		m_regbank.B =
+		    co_await await<3>(m_clock, INC<std::uint8_t>, m_regbank.B, m_regbank.F);
 		break;
 	}
 	case 0x05: {
@@ -269,8 +268,8 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	case 0x08: {
 		const Register16 imm16 = co_await fetch_imm16(memory);
 		const auto [hi, lo] = decompose(LD(m_regbank.SP));
-		co_await memory.write(imm16, hi);
-		co_await memory.write(imm16 + 1, lo);
+		memory.write(imm16, hi);
+		memory.write(imm16 + 1, lo);
 		break;
 	}
 	case 0x09: {
@@ -280,7 +279,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x0a: {
-		m_regbank.A = co_await LD(compose(m_regbank.B, m_regbank.C), memory);
+		m_regbank.A = LD(compose(m_regbank.B, m_regbank.C), memory);
 		break;
 	}
 	case 0x0b: {
@@ -313,7 +312,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x12: {
-		co_await memory.write(compose(m_regbank.D, m_regbank.E), LD(m_regbank.A));
+		memory.write(compose(m_regbank.D, m_regbank.E), LD(m_regbank.A));
 		break;
 	}
 	case 0x13: {
@@ -348,7 +347,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x1a: {
-		m_regbank.A = co_await LD(compose(m_regbank.D, m_regbank.E), memory);
+		m_regbank.A = LD(compose(m_regbank.D, m_regbank.E), memory);
 		break;
 	}
 	case 0x1b: {
@@ -382,7 +381,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0x22: {
 		const Register16 HL = compose(m_regbank.H, m_regbank.L);
-		co_await memory.write(HL, LD<Inc_HL>(m_regbank.A, m_regbank));
+		memory.write(HL, LD<Inc_HL>(m_regbank.A, m_regbank));
 		break;
 	}
 	case 0x23: {
@@ -451,7 +450,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0x32: {
 		const Register16 HL = compose(m_regbank.H, m_regbank.L);
-		co_await memory.write(HL, LD<Dec_HL>(m_regbank.A, m_regbank));
+		memory.write(HL, LD<Dec_HL>(m_regbank.A, m_regbank));
 		break;
 	}
 	case 0x33: {
@@ -460,12 +459,12 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0x34: {
 		const Register16 HL = compose(m_regbank.H, m_regbank.L);
-		tie(m_regbank.H, m_regbank.L) = decompose(co_await INC(HL, m_regbank.F, memory));
+		tie(m_regbank.H, m_regbank.L) = decompose(INC(HL, m_regbank.F, memory));
 		break;
 	}
 	case 0x35: {
 		const Register16 HL = compose(m_regbank.H, m_regbank.L);
-		tie(m_regbank.H, m_regbank.L) = decompose(co_await DEC(HL, m_regbank.F, memory));
+		tie(m_regbank.H, m_regbank.L) = decompose(DEC(HL, m_regbank.F, memory));
 		break;
 	}
 	case 0x36: {
@@ -488,7 +487,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0x3a: {
 		const Register16 HL = compose(m_regbank.H, m_regbank.L);
-		co_await memory.write(HL, LD<Inc_HL>(m_regbank.A, m_regbank));
+		memory.write(HL, LD<Inc_HL>(m_regbank.A, m_regbank));
 		break;
 	}
 	case 0x3b: {
@@ -536,7 +535,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x46: {
-		m_regbank.B = co_await LD(compose(m_regbank.H, m_regbank.L), memory);
+		m_regbank.B = LD(compose(m_regbank.H, m_regbank.L), memory);
 		break;
 	}
 	case 0x47: {
@@ -568,7 +567,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x4e: {
-		m_regbank.C = co_await LD(compose(m_regbank.H, m_regbank.L), memory);
+		m_regbank.C = LD(compose(m_regbank.H, m_regbank.L), memory);
 		break;
 	}
 	case 0x4f: {
@@ -600,7 +599,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x56: {
-		m_regbank.D = co_await LD(compose(m_regbank.H, m_regbank.L), memory);
+		m_regbank.D = LD(compose(m_regbank.H, m_regbank.L), memory);
 		break;
 	}
 	case 0x57: {
@@ -632,7 +631,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x5e: {
-		m_regbank.E = co_await LD(compose(m_regbank.H, m_regbank.L), memory);
+		m_regbank.E = LD(compose(m_regbank.H, m_regbank.L), memory);
 		break;
 	}
 	case 0x5f: {
@@ -664,7 +663,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x66: {
-		m_regbank.H = co_await LD(compose(m_regbank.H, m_regbank.L), memory);
+		m_regbank.H = LD(compose(m_regbank.H, m_regbank.L), memory);
 		break;
 	}
 	case 0x67: {
@@ -696,7 +695,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x6e: {
-		m_regbank.L = co_await LD(compose(m_regbank.H, m_regbank.L), memory);
+		m_regbank.L = LD(compose(m_regbank.H, m_regbank.L), memory);
 		break;
 	}
 	case 0x6f: {
@@ -704,32 +703,32 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x70: {
-		co_await memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.B));
+		 memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.B));
 		break;
 	}
 	case 0x71: {
-		co_await memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.C));
+		 memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.C));
 		break;
 	}
 	case 0x72: {
-		co_await memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.D));
+		 memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.D));
 		break;
 	}
 	case 0x73: {
-		co_await memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.E));
+		 memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.E));
 		break;
 	}
 	case 0x74: {
-		co_await memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.H));
+		 memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.H));
 		break;
 	}
 	case 0x75: {
-		co_await memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.L));
+		 memory.write(compose(m_regbank.H, m_regbank.L), LD(m_regbank.L));
 		break;
 	}
 	case 0x76: {
 		const Register16 HL = compose(m_regbank.H, m_regbank.L);
-		co_await memory.write(HL, co_await LD(HL, memory));
+		memory.write(HL, LD(HL, memory));
 		break;
 	}
 	case 0x77: {
@@ -761,7 +760,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0x7e: {
-		m_regbank.A = co_await LD(compose(m_regbank.H, m_regbank.L), memory);
+		m_regbank.A = LD(compose(m_regbank.H, m_regbank.L), memory);
 		break;
 	}
 	case 0x7f: {
@@ -794,8 +793,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0x86: {
 		m_regbank.A =
-		    ADD(m_regbank.A, co_await memory.read(compose(m_regbank.H, m_regbank.L)),
-		        m_regbank.F);
+		    ADD(m_regbank.A, memory.read(compose(m_regbank.H, m_regbank.L)), m_regbank.F);
 		break;
 	}
 	case 0x87: {
@@ -828,7 +826,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0x8e: {
 		m_regbank.A =
-		    ADC(m_regbank.A, co_await memory.read(compose(m_regbank.H, m_regbank.L)),
+		    ADC(m_regbank.A, memory.read(compose(m_regbank.H, m_regbank.L)),
 		        m_regbank.F);
 		break;
 	}
@@ -862,7 +860,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0x96: {
 		m_regbank.A =
-		    SUB(m_regbank.A, co_await memory.read(compose(m_regbank.H, m_regbank.L)),
+		    SUB(m_regbank.A, memory.read(compose(m_regbank.H, m_regbank.L)),
 		        m_regbank.F);
 		break;
 	}
@@ -896,7 +894,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0x9e: {
 		m_regbank.A =
-		    SBC(m_regbank.A, co_await memory.read(compose(m_regbank.H, m_regbank.L)),
+		    SBC(m_regbank.A, memory.read(compose(m_regbank.H, m_regbank.L)),
 		        m_regbank.F);
 		break;
 	}
@@ -930,7 +928,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0xa6: {
 		m_regbank.A =
-		    AND(m_regbank.A, co_await memory.read(compose(m_regbank.H, m_regbank.L)),
+		    AND(m_regbank.A, memory.read(compose(m_regbank.H, m_regbank.L)),
 		        m_regbank.F);
 		break;
 	}
@@ -964,7 +962,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0xae: {
 		m_regbank.A =
-		    XOR(m_regbank.A, co_await memory.read(compose(m_regbank.H, m_regbank.L)),
+		    XOR(m_regbank.A, memory.read(compose(m_regbank.H, m_regbank.L)),
 		        m_regbank.F);
 		break;
 	}
@@ -998,7 +996,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0xb6: {
 		m_regbank.A =
-		    OR(m_regbank.A, co_await memory.read(compose(m_regbank.H, m_regbank.L)),
+		    OR(m_regbank.A, memory.read(compose(m_regbank.H, m_regbank.L)),
 		       m_regbank.F);
 		break;
 	}
@@ -1039,11 +1037,11 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xc0: {
-		co_await RET<NZ>(m_regbank.PC, m_regbank.SP, memory, m_regbank.F);
+		RET<NZ>(m_regbank.PC, m_regbank.SP, memory, m_regbank.F);
 		break;
 	}
 	case 0xc1: {
-		tie(m_regbank.B, m_regbank.C) = co_await POP(m_regbank.SP, memory);
+		tie(m_regbank.B, m_regbank.C) = POP(m_regbank.SP, memory);
 		break;
 	}
 	case 0xc2: {
@@ -1055,12 +1053,12 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xc4: {
-		co_await CALL<NZ>(m_regbank.PC, m_regbank.SP, co_await fetch_imm16(memory),
+		CALL<NZ>(m_regbank.PC, m_regbank.SP, co_await fetch_imm16(memory),
 		                  memory, m_regbank.F);
 		break;
 	}
 	case 0xc5: {
-		co_await PUSH(m_regbank.SP, memory, compose(m_regbank.B, m_regbank.C));
+		PUSH(m_regbank.SP, memory, compose(m_regbank.B, m_regbank.C));
 		break;
 	}
 	case 0xc6: {
@@ -1068,15 +1066,15 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xc7: {
-		co_await RST(m_regbank.PC, m_regbank.SP, 0x00, memory);
+		RST(m_regbank.PC, m_regbank.SP, 0x00, memory);
 		break;
 	}
 	case 0xc8: {
-		co_await RET<Z>(m_regbank.PC, m_regbank.SP, memory, m_regbank.F);
+		RET<Z>(m_regbank.PC, m_regbank.SP, memory, m_regbank.F);
 		break;
 	}
 	case 0xc9: {
-		co_await RET(m_regbank.PC, m_regbank.SP, memory);
+		RET(m_regbank.PC, m_regbank.SP, memory);
 		break;
 	}
 	case 0xca: {
@@ -1088,12 +1086,12 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xcc: {
-		co_await CALL<Z>(m_regbank.PC, m_regbank.SP, co_await fetch_imm16(memory), memory,
+		CALL<Z>(m_regbank.PC, m_regbank.SP, co_await fetch_imm16(memory), memory,
 		                 m_regbank.F);
 		break;
 	}
 	case 0xcd: {
-		co_await CALL(m_regbank.PC, m_regbank.SP, co_await fetch_imm16(memory), memory);
+		CALL(m_regbank.PC, m_regbank.SP, co_await fetch_imm16(memory), memory);
 		break;
 	}
 	case 0xce: {
@@ -1101,15 +1099,15 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xcf: {
-		co_await RST(m_regbank.PC, m_regbank.SP, 0x08, memory);
+		RST(m_regbank.PC, m_regbank.SP, 0x08, memory);
 		break;
 	}
 	case 0xd0: {
-		co_await RET<NC>(m_regbank.PC, m_regbank.SP, memory, m_regbank.F);
+		RET<NC>(m_regbank.PC, m_regbank.SP, memory, m_regbank.F);
 		break;
 	}
 	case 0xd1: {
-		tie(m_regbank.D, m_regbank.E) = co_await POP(m_regbank.SP, memory);
+		tie(m_regbank.D, m_regbank.E) = POP(m_regbank.SP, memory);
 		break;
 	}
 	case 0xd2: {
@@ -1121,12 +1119,12 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xd4: {
-		co_await CALL<NC>(m_regbank.PC, m_regbank.SP, co_await fetch_imm16(memory),
+		CALL<NC>(m_regbank.PC, m_regbank.SP, co_await fetch_imm16(memory),
 		                  memory, m_regbank.F);
 		break;
 	}
 	case 0xd5: {
-		co_await PUSH(m_regbank.SP, memory, compose(m_regbank.D, m_regbank.E));
+		PUSH(m_regbank.SP, memory, compose(m_regbank.D, m_regbank.E));
 		break;
 	}
 	case 0xd6: {
@@ -1134,15 +1132,15 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xd7: {
-		co_await RST(m_regbank.PC, m_regbank.SP, 0x10, memory);
+		RST(m_regbank.PC, m_regbank.SP, 0x10, memory);
 		break;
 	}
 	case 0xd8: {
-		co_await RET<C>(m_regbank.PC, m_regbank.SP, memory, m_regbank.F);
+		RET<C>(m_regbank.PC, m_regbank.SP, memory, m_regbank.F);
 		break;
 	}
 	case 0xd9: {
-		co_await RETI(m_regbank.PC, m_regbank.SP, memory);
+		RETI(m_regbank.PC, m_regbank.SP, memory);
 		break;
 	}
 	case 0xda: {
@@ -1154,7 +1152,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xdc: {
-		co_await CALL<C>(m_regbank.PC, m_regbank.SP, co_await fetch_imm8(memory), memory,
+		CALL<C>(m_regbank.PC, m_regbank.SP, co_await fetch_imm8(memory), memory,
 		                 m_regbank.F);
 		break;
 	}
@@ -1167,22 +1165,22 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xdf: {
-		co_await RST(m_regbank.PC, m_regbank.SP, 0x18, memory);
+		RST(m_regbank.PC, m_regbank.SP, 0x18, memory);
 		break;
 	}
 	case 0xe0: {
 		const uint16_t addr =
 		    compose(static_cast<uint8_t>(0xFF), co_await fetch_imm8(memory));
-		co_await memory.write(addr, LD(m_regbank.A));
+		memory.write(addr, LD(m_regbank.A));
 		break;
 	}
 	case 0xe1: {
-		tie(m_regbank.H, m_regbank.L) = co_await POP(m_regbank.SP, memory);
+		tie(m_regbank.H, m_regbank.L) = POP(m_regbank.SP, memory);
 		break;
 	}
 	case 0xe2: {
 		const uint16_t addr = compose(static_cast<uint8_t>(0xFF), m_regbank.C);
-		co_await memory.write(addr, LD(m_regbank.A));
+		memory.write(addr, LD(m_regbank.A));
 		break;
 	}
 	case 0xe3: {
@@ -1194,7 +1192,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xe5: {
-		co_await PUSH(m_regbank.SP, memory, compose(m_regbank.H, m_regbank.L));
+		PUSH(m_regbank.SP, memory, compose(m_regbank.H, m_regbank.L));
 		break;
 	}
 	case 0xe6: {
@@ -1202,7 +1200,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xe7: {
-		co_await RST(m_regbank.PC, m_regbank.SP, 0x20, memory);
+		RST(m_regbank.PC, m_regbank.SP, 0x20, memory);
 		break;
 	}
 	case 0xe8: {
@@ -1210,12 +1208,12 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xe9: {
-		JP<Z>(m_regbank.PC, co_await memory.read(compose(m_regbank.H, m_regbank.L)),
+		JP<Z>(m_regbank.PC, memory.read(compose(m_regbank.H, m_regbank.L)),
 		      m_regbank.F);
 		break;
 	}
 	case 0xea: {
-		co_await memory.write(co_await fetch_imm16(memory), LD(m_regbank.A));
+		memory.write(co_await fetch_imm16(memory), LD(m_regbank.A));
 		break;
 	}
 	case 0xeb: {
@@ -1235,24 +1233,24 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xef: {
-		co_await RST(m_regbank.PC, m_regbank.SP, 0x28, memory);
+		RST(m_regbank.PC, m_regbank.SP, 0x28, memory);
 		break;
 	}
 	case 0xf0: {
-		m_regbank.A = co_await LDH(co_await fetch_imm8(memory), memory);
+		m_regbank.A = LDH(co_await fetch_imm8(memory), memory);
 		break;
 	}
 	case 0xf1: {
-		tie(m_regbank.A, m_regbank.F) = co_await POP(m_regbank.SP, memory);
+		tie(m_regbank.A, m_regbank.F) = POP(m_regbank.SP, memory);
 		break;
 	}
 	case 0xf2: {
 
-		m_regbank.A = co_await LDH(m_regbank.C, memory);
+		m_regbank.A = LDH(m_regbank.C, memory);
 		break;
 	}
 	case 0xf3: {
-		co_await DI(memory);
+		DI(memory);
 		break;
 	}
 	case 0xf4: {
@@ -1260,7 +1258,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xf5: {
-		co_await PUSH(m_regbank.SP, memory, compose(m_regbank.A, m_regbank.F.read()));
+		PUSH(m_regbank.SP, memory, compose(m_regbank.A, m_regbank.F.read()));
 		break;
 	}
 	case 0xf6: {
@@ -1268,7 +1266,7 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xf7: {
-		co_await RST(m_regbank.PC, m_regbank.SP, 0x30, memory);
+		RST(m_regbank.PC, m_regbank.SP, 0x30, memory);
 		break;
 	}
 	case 0xf8: {
@@ -1281,11 +1279,11 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 	}
 	case 0xfa: {
 		// TODO fix the flag
-		m_regbank.A = co_await LD(co_await fetch_imm16(memory), memory);
+		m_regbank.A = LD(co_await fetch_imm16(memory), memory);
 		break;
 	}
 	case 0xfb: {
-		co_await EI(memory);
+		EI(memory);
 		break;
 	}
 	case 0xfc: {
@@ -1301,10 +1299,9 @@ auto SM83::execute(uint8_t opcode, Memory &memory) noexcept -> task<void>
 		break;
 	}
 	case 0xff: {
-		co_await RST(m_regbank.PC, m_regbank.SP, 0x38, memory);
+		RST(m_regbank.PC, m_regbank.SP, 0x38, memory);
 		break;
 	}
 	}
-	co_await make_awaiter(m_clock, 1);
 	co_return;
 }

@@ -179,9 +179,27 @@ template <Unsigned T> constexpr auto INC(T source, Flag_register &F) noexcept ->
 	if(tmp == 0) F.set_zero();
 	return tmp;
 }
+constexpr auto INC(Register16 source, Flag_register &F, const Memory &memory) noexcept
+    -> Register8
+{
+	F.clear_substract();
+	if(((source & 0b1111) + (0b1)) > 0b1111) F.set_half_carry();
 
-auto INC(Register16 source, Flag_register &F, const Memory &memory) noexcept
-    -> task<Register8>;
+	const Register8 tmp = (memory.read(source)) + 1;
+	if(tmp == 0) F.set_zero();
+	return tmp;
+}
+
+constexpr auto DEC(Register16 source, Flag_register &F, const Memory &memory) noexcept
+    -> Register8
+{
+	F.clear_substract();
+	if(((source & 0b1111) + (0b1)) > 0b1111) F.set_half_carry();
+
+	const Register16 tmp = (memory.read(source)) - 1;
+	if(tmp == 0) F.set_zero();
+	return tmp;
+}
 
 template <Unsigned T> constexpr auto DEC(T source, Flag_register &F) noexcept -> T
 {
@@ -192,9 +210,6 @@ template <Unsigned T> constexpr auto DEC(T source, Flag_register &F) noexcept ->
 	F.set_substract();
 	return tmp;
 }
-
-auto DEC(Register16 source, Flag_register &F, const Memory &memory) noexcept
-    -> task<Register8>;
 
 constexpr auto SWAP(Register8 source, Flag_register &F) noexcept -> std::uint8_t
 {
@@ -342,7 +357,8 @@ constexpr auto DAA(Register8 A, Flag_register &F) -> Register8
 /*************************** Memory *********************************/
 constexpr auto LD(Register8 source) noexcept -> Register8 { return source; }
 template <class HL_Policy>
-inline auto LD(Register16 source, const Memory &memory, Register_bank &reg_bank) noexcept
+auto LD(Register16 source, const Memory &memory, Register_bank &reg_bank) noexcept
+    -> std::uint8_t
 {
 	HL_Policy{}(reg_bank);
 	return memory.read(source);
@@ -354,11 +370,11 @@ constexpr auto LD(Register16 source, Register_bank &reg_bank) noexcept
 	HL_Policy{}(reg_bank);
 	return source;
 }
-inline auto LD(Register16 source, const Memory &memory) noexcept
+constexpr auto LD(Register16 source, const Memory &memory) noexcept -> std::uint8_t
 {
 	return memory.read(source);
 }
-inline auto LDH(Imm8 value, const Memory &memory) noexcept
+constexpr auto LDH(Imm8 value, const Memory &memory) noexcept -> std::uint8_t
 {
 	return memory.read(compose(static_cast<uint8_t>(0xFF), value));
 }
@@ -411,47 +427,85 @@ constexpr auto JR(Register16 &PC, Imm8_s add, Flag_register F) noexcept -> void
 	if constexpr(cc == NC)
 		if(F.carry()) return JR(PC, add);
 }
+constexpr auto _dec(Register16 &value) noexcept { return --value; }
+constexpr auto _inc(Register16 &value) noexcept { return ++value; }
 
-auto PUSH(Register16 &SP, Memory &memory, Register16 value) noexcept -> task<void>;
-auto POP(Register16 &SP, const Memory &memory) noexcept
-    -> task<std::pair<std::uint8_t, std::uint8_t>>;
-auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory) noexcept
-    -> task<void>;
+constexpr auto PUSH(Register16 &SP, Memory &memory, Register16 value) noexcept -> void
+{
+	const auto [hi, lo] = decompose(value);
+	memory.write(_dec(SP), hi);
+	memory.write(_dec(SP), lo);
+	return;
+}
+
+constexpr auto POP(Register16 &SP, const Memory &memory) noexcept
+    -> std::pair < std::uint8_t, std::uint8_t>
+{
+	const auto val = std::make_pair(memory.read(SP), memory.read(_inc(SP)));
+	++SP;
+	return val;
+}
+constexpr auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory) noexcept
+    -> void
+{
+	PUSH(SP, memory, PC);
+	return JP(PC, addr);
+}
+
 template <FLAG cc>
 auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory,
-          Flag_register F) noexcept -> task<void>
+          Flag_register F) noexcept -> void
 {
 	if constexpr(cc == NC)
-		if(not F.zero()) co_await CALL(PC, SP, addr, memory);
+		if(not F.zero()) CALL(PC, SP, addr, memory);
 	if constexpr(cc == C)
-		if(not F.carry()) co_await CALL(PC, SP, addr, memory);
+		if(not F.carry()) CALL(PC, SP, addr, memory);
 	if constexpr(cc == NZ)
-		if(F.zero()) co_await CALL(PC, SP, addr, memory);
+		if(F.zero()) CALL(PC, SP, addr, memory);
 	if constexpr(cc == NC)
-		if(F.carry()) co_await CALL(PC, SP, addr, memory);
-	co_return;
-}
-auto RST(Register16 &PC, Register16 &SP, Imm8 addr, Memory &memory) noexcept
-    -> task<void>;
-auto RET(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> task<void>;
-template <FLAG cc>
-auto RET(Register16 &PC, Register16 &SP, Memory &memory, Flag_register F) noexcept
-    -> task<void>
-{
-	if constexpr(cc == NC)
-		if(not F.zero()) co_await RET(PC, SP, memory);
-	if constexpr(cc == C)
-		if(not F.carry()) co_await RET(PC, SP, memory);
-	if constexpr(cc == NZ)
-		if(F.zero()) co_await RET(PC, SP, memory);
-	if constexpr(cc == NC)
-		if(F.carry()) co_await RET(PC, SP, memory);
-	co_return;
+		if(F.carry()) CALL(PC, SP, addr, memory);
+	return;
 }
 
-auto EI(Memory &memory) noexcept -> task<void>;
-auto DI(Memory &memory) noexcept -> task<void>;
-auto RETI(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> task<void>;
+constexpr auto RST(Register16 &PC, Register16 &SP, Imm8 addr, Memory &memory) noexcept
+    -> void
+{
+	PUSH(SP, memory, PC);
+	return JP(PC, addr);
+}
+constexpr auto RET(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> void
+{
+	return JP(PC, compose(POP(SP, memory)));
+}
+template <FLAG cc>
+auto RET(Register16 &PC, Register16 &SP, Memory &memory, Flag_register F) noexcept -> void
+{
+	if constexpr(cc == NC)
+		if(not F.zero()) RET(PC, SP, memory);
+	if constexpr(cc == C)
+		if(not F.carry()) RET(PC, SP, memory);
+	if constexpr(cc == NZ)
+		if(F.zero()) RET(PC, SP, memory);
+	if constexpr(cc == NC)
+		if(F.carry()) RET(PC, SP, memory);
+	return;
+}
+
+constexpr auto EI(Memory &memory) noexcept -> void
+{
+	memory.write_IME(0x1F);
+	return;
+}
+constexpr auto DI(Memory &memory) noexcept -> void
+{
+	memory.write_IME(0b0);
+	return;
+}
+constexpr auto RETI(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> void
+{
+	JP(PC, compose(POP(SP, memory)));
+	return EI(memory);
+}
 
 /*************************** Other *********************************/
 constexpr auto NOOP() noexcept -> void { return; }

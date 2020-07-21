@@ -24,14 +24,14 @@ auto MBC1::read_ram(std::uint16_t addr) const noexcept -> std::uint8_t
 		if(mode()) {
 			addr = (addr & 0b0000'1111'1111'1111) | bank2();
 		}
-		return m_ram_bank[addr-0xA000];
+		return m_ram_bank[addr - 0xA000];
 	}
 }
 auto MBC1::read(std::uint16_t address) const noexcept -> std::uint8_t
 {
-	return (address < 0xA000) ? (address < 0x4000) ? m_rom_bank[select_bank(address)]
-                                                       : m_rom_bank[select_bank(address)]
-                                                       : read_ram(address);
+	return (address < 0xA000) ? (address < 0x4000) ? m_rom_bank[select_bank(address)] :
+	                                                 m_rom_bank[select_bank(address)] :
+	                            read_ram(address);
 }
 auto MBC1::write(std::uint16_t address, std::uint8_t value) -> void
 {
