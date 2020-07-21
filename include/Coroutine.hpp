@@ -13,9 +13,6 @@ struct Dummy_coro {
 
 // https://www.youtube.com/watch?v=8C8NnE1Dg4A&t=45m50s (Gor Nishanov, CppCon 2016)
 
-#include <exception>
-#include <variant>
-
 template <class T> struct task {
 	struct promise_type {
 		// the coroutine which have call co_await

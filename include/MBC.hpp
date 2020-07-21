@@ -1,20 +1,10 @@
 #ifndef __MBC_HPP__
 #define __MBC_HPP__
+#include "include_std.hpp"
 #include "bit_manipulation.hpp"
-#include <cstddef>
-#include <cstdint>
-#include <iterator>
-#include <random>
-#include <ranges>
-#include <span>
-#include <stdexcept>
+#include "units.hpp"
 
-// TODO Change this :thinking:
-template <size_t N, typename T, template <class> typename C = std::vector>
-constexpr auto window(C<T> &data, std::size_t offset) -> std::span<T, N>
-{
-	return std::span<T, N>{std::begin(data) + offset, N};
-}
+#include <random>
 
 /*
  * Memory Controller :

@@ -1,16 +1,19 @@
 #ifndef __CLOCK_HPP__
 #define __CLOCK_HPP__
-#include "Coroutine.hpp"
+
 #include "include_std.hpp"
-#include "functional"
+#include "Coroutine.hpp"
 #include "trait.hpp"
+
 #include <chrono>
 #include <ctime>
 #include <iostream>
+
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #include <type_traits>
 #include <unistd.h>
+
 class Clock_domain {
   public:
 	Clock_domain(double sec) : _clock_domain(sec) { _clock_domain.start_timer(); }
@@ -117,16 +120,6 @@ class Scheduler {
 	int _efd;
 };
 
-// TODO Constexpr ?
-inline auto make_awaiter(const Clock_domain &clock, int cycle, int promise)
-{
-	return Clock_domain::Awaiter{clock, cycle, promise};
-}
-inline auto make_awaiter(const Clock_domain &clock, int cycle)
-{
-	return Clock_domain::Awaiter{clock, cycle};
-}
-
 template <unsigned cycle, class Fct, class... Args> requires Callable<Fct, Args...>
 auto await(const Clock_domain &clock, Fct&& f, Args &&... arg)
                 -> task<std::invoke_result_t<Fct, Args...>>
@@ -134,15 +127,4 @@ auto await(const Clock_domain &clock, Fct&& f, Args &&... arg)
 	co_await Clock_domain::Awaiter{clock, cycle};
 	co_return std::invoke(std::forward<Fct>(f),std::forward<Args>(arg)...);
 }
-// return µs result
-constexpr long double operator"" _Mhz(long double frequency)
-{
-	return (frequency == 0) ? 0 : (1e3 / frequency);
-}
-// return µs result
-constexpr long double operator"" _Mhz(unsigned long long int frequency)
-{
-	return (frequency == 0) ? 0 : (1e3 / frequency);
-}
-
 #endif

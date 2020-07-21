@@ -5,8 +5,6 @@
 #include "cpu.hpp"
 #include "include_std.hpp"
 #include "memory.hpp"
-#include <cstdint>
-#include <initializer_list>
 
 class Gameboy {
   public:
@@ -27,7 +25,7 @@ class Gameboy {
 	}
 	Gameboy(std::initializer_list<std::uint8_t> program)
 	    : m_clock_cpu{4_Mhz}, m_clock_gpu{4_Mhz}, m_cpu(m_clock_cpu),
-	      m_memory(m_clock_cpu, program)
+	      m_memory(program)
 	{
 	}
 

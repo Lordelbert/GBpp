@@ -4,10 +4,6 @@
 #include "include_std.hpp"
 #include "memory.hpp"
 #include "trait.hpp"
-#include <compare>
-#include <cstdint>
-#include <optional>
-#include <type_traits>
 
 namespace ISA {
 enum FLAG : uint8_t { NZ, Z, NC, C };

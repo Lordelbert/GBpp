@@ -4,10 +4,6 @@
 #include "Coroutine.hpp"
 #include "MBC.hpp"
 #include "include_std.hpp"
-#include <cstdint>
-#include <initializer_list>
-#include <iterator>
-#include <memory>
 
 class Memory {
 	std::array<std::uint8_t, 64_kB> m_memory; // 0x0 - 0xFFFF
