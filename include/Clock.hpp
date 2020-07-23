@@ -1,8 +1,8 @@
 #ifndef __CLOCK_HPP__
 #define __CLOCK_HPP__
 
-#include "include_std.hpp"
 #include "Coroutine.hpp"
+#include "include_std.hpp"
 #include "trait.hpp"
 
 #include <chrono>
@@ -120,6 +120,7 @@ class Scheduler {
 	int _efd;
 };
 
+// clang-format off
 template <unsigned cycle, class Fct, class... Args> requires Callable<Fct, Args...>
 auto await(const Clock_domain &clock, Fct&& f, Args &&... arg)
                 -> task<std::invoke_result_t<Fct, Args...>>
@@ -127,4 +128,5 @@ auto await(const Clock_domain &clock, Fct&& f, Args &&... arg)
 	co_await Clock_domain::Awaiter{clock, cycle};
 	co_return std::invoke(std::forward<Fct>(f),std::forward<Args>(arg)...);
 }
+// clang-format on
 #endif

@@ -19,13 +19,11 @@ class Gameboy {
 		}
 	}
 	Gameboy(std::vector<std::uint8_t> program)
-	    : m_clock_cpu{4_Mhz}, m_clock_gpu{4_Mhz}, m_cpu(m_clock_cpu),
-	      m_memory(program)
+	    : m_clock_cpu{4_Mhz}, m_clock_gpu{4_Mhz}, m_cpu(m_clock_cpu), m_memory(program)
 	{
 	}
 	Gameboy(std::initializer_list<std::uint8_t> program)
-	    : m_clock_cpu{4_Mhz}, m_clock_gpu{4_Mhz}, m_cpu(m_clock_cpu),
-	      m_memory(program)
+	    : m_clock_cpu{4_Mhz}, m_clock_gpu{4_Mhz}, m_cpu(m_clock_cpu), m_memory(program)
 	{
 	}
 

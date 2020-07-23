@@ -345,6 +345,7 @@ constexpr auto double_dabble(Register8 A) noexcept -> std::pair<uint8_t, bool>
 	return std::make_pair(result, false);
 }
 constexpr auto DAA(Register8 A, Flag_register &F) -> Register8
+// TODO fix flag
 {
 	auto [result, C] = double_dabble(A);
 	F.set_carry(C);
@@ -435,7 +436,7 @@ constexpr auto PUSH(Register16 &SP, Memory &memory, Register16 value) noexcept -
 }
 
 constexpr auto POP(Register16 &SP, const Memory &memory) noexcept
-    -> std::pair < std::uint8_t, std::uint8_t>
+    -> std::pair<std::uint8_t, std::uint8_t>
 {
 	const auto val = std::make_pair(memory.read(SP), memory.read(_inc(SP)));
 	++SP;

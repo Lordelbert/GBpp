@@ -4,10 +4,10 @@
 #include "Coroutine.hpp"
 #include "ISA.hpp"
 #include "bit_manipulation.hpp"
-#include "units.hpp"
 #include "cpu.hpp"
 #include "include_std.hpp"
 #include "memory.hpp"
+#include "units.hpp"
 
 #include <limits>
 

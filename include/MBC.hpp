@@ -1,7 +1,7 @@
 #ifndef __MBC_HPP__
 #define __MBC_HPP__
-#include "include_std.hpp"
 #include "bit_manipulation.hpp"
+#include "include_std.hpp"
 #include "units.hpp"
 
 #include <random>
@@ -38,11 +38,8 @@ class MBC {
 
   public:
 	MBC(std::vector<std::uint8_t> prog, size_t ram)
-	    : m_rom_bank(prog), rd(), m_gen(rd()), m_distrib(0, 255)
+	noexcept : m_rom_bank(prog), rd(), m_gen(rd()), m_distrib(0, 255)
 	{
-		if(prog.size() > 2_MB) {
-			throw std::out_of_range("MBC1 is unable to manage more than 2MBytes");
-		}
 		// clang-format off
                 m_ram_bank.reserve(ram);
 		std::generate(std::begin(m_ram_bank), std::end(m_ram_bank),
@@ -50,7 +47,7 @@ class MBC {
 		// clang-format on
 		return;
 	}
-	virtual auto read(std::uint16_t) const noexcept -> std::uint8_t = 0;
+	virtual auto read(std::uint16_t) const -> std::uint8_t = 0;
 	virtual auto write(std::uint16_t, std::uint8_t) -> void = 0;
 };
 
@@ -102,7 +99,14 @@ class MBC1 final : public MBC {
 	bool m_ramg_enable = 0;
 
   public:
-	MBC1(std::vector<std::uint8_t> prog, size_t ram) : MBC(prog, ram) {}
+	MBC1(std::vector<std::uint8_t> prog, size_t ram) : MBC(prog, ram)
+	{
+		if(prog.size() > 2_MB or ram > 256_kB) {
+			throw std::out_of_range("Invalid Configuration: "
+			                        "MBC1 is unable to manage ROM > 2MB "
+			                        "or RAM > 256kB");
+		}
+	}
 	virtual ~MBC1() = default;
 
 	[[nodiscard]] auto mode() const noexcept -> std::uint8_t
@@ -124,13 +128,13 @@ class MBC1 final : public MBC {
 	}
 	auto bank_reg1(std::uint8_t value) noexcept -> void
 	{
-		const auto _val = (value & 0b1111);
-		m_bank_selector = (_val == 0) ? 0b1 : _val;
+		const auto _val = (value & 0b0001'1111);
+                m_bank_selector = (m_bank_selector & 0b1110'0000) | ((_val == 0) ? 0b1 : _val);
 	}
 	// note can also be used for bank in ram :
 	auto bank_reg2(std::uint8_t value) noexcept -> void
 	{
-		m_bank_selector = ((value & 0b11) << 5) | m_bank_selector;
+		m_bank_selector = (m_bank_selector & 0b1001'1111) | ((value & 0b11) << 5);
 	}
 	auto bank_mode(std::uint8_t value) noexcept -> void
 	{
@@ -138,14 +142,16 @@ class MBC1 final : public MBC {
 		    set_bit(m_bank_selector, 7, static_cast<std::uint8_t>(value & 0b1));
 	}
 
-	// clang-format off
-	[[maybe_unused]]
         [[nodiscard]] auto select_bank(std::uint16_t addr) const noexcept -> std::uint32_t;
-	// clang-format on
-
-	[[nodiscard]] auto read(std::uint16_t address) const noexcept -> std::uint8_t;
+        //Precondition addr in rang 0x0 -0x7FFF or 0xA000-0xC000 ensure by memory class
 	[[nodiscard]] auto read_ram(std::uint16_t addr) const noexcept -> std::uint8_t;
-	auto write(std::uint16_t address, std::uint8_t value) -> void;
+        //Precondition addr in rang 0x0 -0x7FFF or 0xA000-0xC000
+	[[nodiscard]] auto read(std::uint16_t address) const noexcept -> std::uint8_t
+        {
+            return (address < 0xA000) ? m_rom_bank[select_bank(address)] : read_ram(address);
+        }
+        //Precondition addr in rang 0x0 -0x7FFF or 0xA000-0xC000
+	auto write(std::uint16_t address, std::uint8_t value) noexcept -> void;
 };
 
 #endif
