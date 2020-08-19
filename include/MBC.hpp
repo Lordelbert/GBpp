@@ -133,11 +133,10 @@ class MBC1 {
 		if(rom > 2_MB or ram > 32_kB) {
 			throw std::invalid_argument("Either program is too big or ram");
 		}
-                // after rom 8kB of Vram follow by swi ram
-                const auto ram_offset = rom +8_kB;
-                std::generate(&m_memory[ram_offset], &m_memory[ram_offset+ram],
-                              [this]{return this->m_distrib(this->m_gen);});
-
+		// after rom 8kB of Vram follow by swi ram
+		const auto ram_offset = rom + 8_kB;
+		std::generate(&m_memory[ram_offset], &m_memory[ram_offset + ram],
+		              [this] { return this->m_distrib(this->m_gen); });
 	}
 	auto mode() const -> uint8_t { return m_bank_selector >> 7; }
 	auto reg1() const -> uint8_t { return m_bank_selector & 0b1'1111; }
@@ -147,15 +146,16 @@ class MBC1 {
 	auto swap_bank_rom_high()
 	{
 		for(size_t i = 0; i < 2; ++i) {
-			MBC1_Partition::section mem_part{&m_memory[reg1_2()*16_kB + i*8_kB],
-			                                 &m_memory[reg1_2()*16_kB + i*8_kB + 8_kB]};
-			m_memory_partition.swap(i+2, std::move(mem_part));
+			MBC1_Partition::section mem_part{
+			    &m_memory[reg1_2() * 16_kB + i * 8_kB],
+			    &m_memory[reg1_2() * 16_kB + i * 8_kB + 8_kB]};
+			m_memory_partition.swap(i + 2, std::move(mem_part));
 		}
 		return;
 	}
 	auto swap_bank_rom_low()
 	{
-		const size_t addr = (mode()) ? (reg2()<<5) * 16_kB : 0b0;
+		const size_t addr = (mode()) ? (reg2() << 5) * 16_kB : 0b0;
 		for(size_t i = 0; i < 2; ++i) {
 			MBC1_Partition::section mem_part{&m_memory[addr + i * 8_kB],
 			                                 &m_memory[addr + i * 8_kB + 8_kB]};
@@ -166,9 +166,8 @@ class MBC1 {
 	auto swap_bank_ram()
 	{
 		const size_t addr = (mode()) ? reg2() * 8_kB : 0b0;
-                MBC1_Partition::section mem_part{&m_memory[addr],
-                                                 &m_memory[addr + 8_kB]};
-                m_memory_partition.swap(5, std::move(mem_part));
+		MBC1_Partition::section mem_part{&m_memory[addr], &m_memory[addr + 8_kB]};
+		m_memory_partition.swap(5, std::move(mem_part));
 		return;
 	}
 	auto ramg_enable(std::uint8_t value) noexcept -> void
@@ -187,7 +186,7 @@ class MBC1 {
 		m_bank_selector = (m_bank_selector & 0b1001'1111) | ((value & 0b11) << 5);
 		swap_bank_rom_high();
 		swap_bank_rom_low();
-		//swap_bank_ram();
+		swap_bank_ram();
 	}
 	auto bank_mode(std::uint8_t value) noexcept -> void
 	{
@@ -195,7 +194,7 @@ class MBC1 {
 		    set_bit(m_bank_selector, 7, static_cast<std::uint8_t>(value & 0b1));
 		swap_bank_rom_high();
 		swap_bank_rom_low();
-		//swap_bank_ram();
+		swap_bank_ram();
 	}
 	[[nodiscard]] auto read(std::uint16_t addr) const noexcept -> std::uint8_t
 	{
@@ -208,22 +207,22 @@ class MBC1 {
 	auto write(std::uint16_t addr, std::uint8_t value) noexcept -> void
 	{
 		if(addr < IROM1_ul) {
-			if(addr<0x2000) {
+			if(addr < 0x2000) {
 				ramg_enable(value);
-                                return;
-                        }
+				return;
+			}
 			if(addr < 0x4000) {
-			    bank_reg1(value);
-                                return;
+				bank_reg1(value);
+				return;
 			}
 			if(addr < 0x6000) {
-			    bank_reg2(value);
-                                return;
-                        }
+				bank_reg2(value);
+				return;
+			}
 			if(addr < 0x8000) {
-                            bank_mode(value);
-                                return;
-                        }
+				bank_mode(value);
+				return;
+			}
 		}
 		if(addr >= SWI_RAM_base and addr < SWI_RAM_ul) {
 			if(m_ramg_enable) {

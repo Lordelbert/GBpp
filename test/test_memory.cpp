@@ -44,9 +44,8 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 				std::mt19937 gen(rd());
 				std::uniform_int_distribution ramg_enable(0, 0x1FFF);
 
-				std::vector<std::uint8_t> rom(2_MB, 0xFF);
-				auto prog = std::vector<std::uint8_t>(2_MB, 0xFF);
-				auto memory = MBC1(std::begin(prog), std::end(prog), 2_MB, 32_kB);
+				auto rom = std::vector<std::uint8_t>(2_MB, 0xFF);
+				auto memory = MBC1(std::begin(rom), std::end(rom), 2_MB, 32_kB);
 
 				WHEN("write/read back: RAM enable")
 				{
@@ -57,10 +56,15 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 				}
 				WHEN("write/read back: RAM enable and bank!=bank0")
 				{
-					// enable ram
 					memory.write(ramg_enable(gen), 0x0A);
+
 					memory.write(0xA000, 0xA5);
 					REQUIRE(memory.read(0xA000) == 0xA5);
+					memory.write(mode_addr(gen), 0b1);
+					memory.write(mbc2_addr(gen), 0b10);
+                                        // TODO change this
+                                        // may fail, since ram is random so we might have 0xA5
+					REQUIRE(not (memory.read(0xA000) == 0xA5));
 				}
 
 				WHEN("write/read back: RAM disable [stat test may fail][not stable]")
@@ -114,18 +118,37 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 					memory.write(mbc2_addr(gen), 0b11);
 					// mode bit is not used so we test with both 0 and 1
 					// to check if there are any side effect
-                                        WHEN("MODE is not set")
-                                        {
-                                            memory.write(mode_addr(gen), 0b0);
-					    const std::uint8_t result = memory.read(0x4000);
-					    REQUIRE(result == 0x5A);
-                                        }
-                                        WHEN("MODE is set")
-                                        {
-                                            memory.write(mode_addr(gen), 0b1);
-					    const std::uint8_t result = memory.read(0x4000);
-					    REQUIRE(result == 0x5A);
-                                        }
+					WHEN("MODE is not set")
+					{
+						memory.write(mode_addr(gen), 0b0);
+						const std::uint8_t result = memory.read(0x4000);
+						REQUIRE(result == 0x5A);
+					}
+					WHEN("MODE is set")
+					{
+						memory.write(mode_addr(gen), 0b1);
+						const std::uint8_t result = memory.read(0x4000);
+						REQUIRE(result == 0x5A);
+					}
+				}
+				WHEN("Reading bank 0x20 from Bank rom")
+				{
+					memory.write(mbc1_addr(gen), 0b0);
+					memory.write(mbc2_addr(gen), 0b1);
+					// mode bit is not used so we test with both 0 and 1
+					// to check if there are any side effect
+					WHEN("MODE is not set")
+					{
+						memory.write(mode_addr(gen), 0b0);
+						const std::uint8_t result = memory.read(0x4000);
+						REQUIRE(result == 0xFE);
+					}
+					WHEN("MODE is set")
+					{
+						memory.write(mode_addr(gen), 0b1);
+						const std::uint8_t result = memory.read(0x4000);
+						REQUIRE(result == 0xFE);
+					}
 				}
 			}
 		}

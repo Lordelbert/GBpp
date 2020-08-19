@@ -59,8 +59,11 @@ class Memory {
 
 	template <typename Memory_Policy_tag>
 	Memory(Memory_Policy_tag, std::initializer_list<std::uint8_t> &&rom, size_t ram)
-	try : m_policy_rw(Tag_to_MBC_convert_t<Memory_Policy_tag>(rom.begin(), rom.end(),ram))
-        {} catch(...) {}
+	try : m_policy_rw(Tag_to_MBC_convert_t<Memory_Policy_tag>(rom.begin(), rom.end(),
+	                                                          ram)) {
+	}
+	catch(...) {
+	}
 
 	constexpr auto read(std::uint16_t addr) const noexcept -> std::uint8_t
 	{
