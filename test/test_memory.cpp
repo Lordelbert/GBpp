@@ -2,6 +2,7 @@
 #include "catch.hpp"
 #include "memory.hpp"
 #include "units.hpp"
+#include <iterator>
 
 TEST_CASE("Memory controller test", "[MBC TEST]")
 {
@@ -14,24 +15,29 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 		std::uniform_int_distribution mbc2_addr(0x4000, 0x5FFF);
 		std::uniform_int_distribution mode_addr(0x6000, 0x7FFF);
 
-                constexpr auto ram_size = 256_kB;
-
 		SECTION("Requires more memory than possible")
 		{
 			// MBC1 handle up to 2MB of ROM and 256 of RAM
 			WHEN("Program is too big")
 			{
 				auto prog = std::vector<std::uint8_t>(3_MB, 0xFF);
-				THEN("Constructor throw") { CHECK_THROWS(MBC1(prog, 256_kB)); }
+				THEN("Constructor throw")
+				{
+					CHECK_THROWS(MBC1(std::begin(prog), std::end(prog), 3_MB, 256_kB));
+				}
 			}
 			WHEN("Too much RAM is required")
 			{
 				auto prog = std::vector<std::uint8_t>(2_MB, 0xFF);
-				THEN("Constructor throw") { CHECK_THROWS(MBC1(prog, 512_kB)); }
+				THEN("Constructor throw")
+				{
+					CHECK_THROWS(MBC1(std::begin(prog), std::end(prog), 2_MB, 512_kB));
+				}
 			}
 		}
 		SECTION("Writing to bank registers")
 		{
+
 			SECTION("RAM:")
 			{
 				std::random_device rd;
@@ -40,7 +46,7 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 
 				std::vector<std::uint8_t> rom(2_MB, 0xFF);
 				auto prog = std::vector<std::uint8_t>(2_MB, 0xFF);
-				auto memory = MBC1(prog, ram_size);
+				auto memory = MBC1(std::begin(prog), std::end(prog), 2_MB, 32_kB);
 
 				WHEN("write/read back: RAM enable")
 				{
@@ -49,7 +55,7 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 					memory.write(0xA000, 0xA5);
 					REQUIRE(memory.read(0xA000) == 0xA5);
 				}
-                                WHEN("write/read back: RAM enable and bank!=bank0")
+				WHEN("write/read back: RAM enable and bank!=bank0")
 				{
 					// enable ram
 					memory.write(ramg_enable(gen), 0x0A);
@@ -86,7 +92,7 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 				std::fill(&rom[0x084000], &rom[0x88000], 0xFE);
 				std::fill(&rom[0x1FC000], &rom[0x200000], 0x5A);
 
-				auto memory = MBC1(rom, ram_size);
+				auto memory = MBC1(std::begin(rom), std::end(rom), 2_MB, 32_kB);
 
 				WHEN("Reading bank 0 and MODE is not set")
 				{
@@ -97,32 +103,30 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 				{
 					memory.write(mode_addr(gen), 0b1);
 					memory.write(mbc2_addr(gen), 0b1);
-                                        const std::uint8_t result = memory.read(0x0);
-                                        // if mode is set bank2 is used in address computation
-                                        // of bank0 :fear:
+					const std::uint8_t result = memory.read(0x0);
+					// if mode is set bank2 is used in address computation
+					// of bank0 :fear:
 					REQUIRE(result == 0xA5);
-                                        REQUIRE(not (result == 0xCA));
 				}
-				WHEN("Reading bank 7F") {
-					memory.write(mbc1_addr(gen), 0xFF);
-					memory.write(mbc2_addr(gen), 0x7F);
-                                        // mode bit is not used so we test with both 0 and 1
-                                        // to check if there are any side effect
-					memory.write(mode_addr(gen), 0b0);
-                                        const std::uint8_t result = memory.read(0x7FFF);
-                                        REQUIRE(result == 0x5A);
-					memory.write(mode_addr(gen), 0b0);
-                                        REQUIRE(result == 0x5A);
-                                }
-				WHEN("Trying Reading bank 0x20") {
-					memory.write(mbc1_addr(gen), 0x00);
-					memory.write(mbc2_addr(gen), 0x01);
-                                        // try to read bank 0x20
-                                        // Expect 0x21 to be read.
-                                        const std::uint8_t result = memory.read(0x7FFF);
-                                        REQUIRE(not (result == 0xA5));
-                                        REQUIRE(result == 0xFE);
-                                }
+				WHEN("Reading bank 7F")
+				{
+					memory.write(mbc1_addr(gen), 0b1'1111);
+					memory.write(mbc2_addr(gen), 0b11);
+					// mode bit is not used so we test with both 0 and 1
+					// to check if there are any side effect
+                                        WHEN("MODE is not set")
+                                        {
+                                            memory.write(mode_addr(gen), 0b0);
+					    const std::uint8_t result = memory.read(0x4000);
+					    REQUIRE(result == 0x5A);
+                                        }
+                                        WHEN("MODE is set")
+                                        {
+                                            memory.write(mode_addr(gen), 0b1);
+					    const std::uint8_t result = memory.read(0x4000);
+					    REQUIRE(result == 0x5A);
+                                        }
+				}
 			}
 		}
 	}

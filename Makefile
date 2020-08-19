@@ -7,11 +7,19 @@ EXE=emulator
 EXE_TEST=emulator_test
 
 CXX=g++
-CXXFLAGS+=-Wall -Wextra -W -std=c++20 -ffunction-sections -fdata-sections -flto -fcoroutines
-OPTI=-O2 -march=native
+CXXFLAGS=-Wall -Wextra -W -std=c++20 -ffunction-sections -fdata-sections -flto -fcoroutines
+
+ifndef DEBUG
+CXXFLAGS+=-O2 -march=native
+else
+LD_DEBUG=-fsanitize=address
+CXXFLAGS+=-O0 -g3 -fno-omit-frame-pointer $(LD_DEBUG)
+endif
+
 INCLUDE+=-I./include
 INCLUDE_TEST+=-I/usr/include/catch2
 LDFLAGS=-flto -Wl,--gc-sections
+LDFLAGS+=$(LD_DEBUG)
 
 OBJDIR=build
 OBJ= $(patsubst %.cpp, $(OBJDIR)/%.o,$(notdir $(SRC)))

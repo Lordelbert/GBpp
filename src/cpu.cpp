@@ -31,7 +31,7 @@ auto SM83::dump(ostream &cout) -> void
 }
 [[nodiscard]] auto SM83::fetch_ovelap(const Memory &memory) noexcept -> uint8_t
 {
-	return memory.read_nowait(m_regbank.PC++);
+	return memory.read(m_regbank.PC++);
 }
 
 [[nodiscard]] auto SM83::fetch_imm8(const Memory &memory) -> task<uint8_t>

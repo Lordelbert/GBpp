@@ -640,183 +640,183 @@ TEST_CASE("ARTIHMETIC_INSTRUCTION", "[Arithmetic]")
         }
     }
 }
-TEST_CASE("LOAD_INSTRUCTION", "[LOAD]")
-{
-    auto prog = std::vector<std::uint8_t>(32_kB, 0xFF);
-    Memory memory{prog};
-
-    SECTION("LD Register8 to Register")
-    {
-        Register8 source = 0xA5;
-        Register8 destination = LD(source);
-        REQUIRE(destination == source);
-    }
-    SECTION("LD Register8 to Memory")
-    {
-        Register16 source = 0x0000;
-        Register8 destination = LD(source, memory);
-        REQUIRE(destination == 0xFF);
-    }
-    SECTION("LD Register8 16 value")
-    {
-        Register16 source = 0xA55A;
-        auto [hi, lo] = decompose(LD(source));
-        REQUIRE(lo == 0x5A);
-        REQUIRE(hi == 0xA5);
-    }
-}
-TEST_CASE("Control_Flow_INSTRUCTION", "[CF]") {
-    SECTION("Direct Stack Manipulation i.e. PUSH/POP") {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution distrib(0, 0xFFFF);
-        auto prog = std::vector<std::uint8_t>(32_kB, 0xFF);
-
-        SECTION("PUSH") {
-            Memory memory{prog};
-            const auto ram = memory.IRAM0();
-            std::fill(std::begin(ram), std::end(ram), 0xFFFF);
-
-            Register16 SP = Memory::IRAM0_ul;
-            const Register16 value = distrib(gen);
-            const auto [hi, lo] = decompose(value);
-            PUSH(SP, memory, value);
-
-            REQUIRE(SP == Memory::IRAM0_ul-2);
-            REQUIRE(memory.read(Memory::IRAM0_ul-1) == lo);
-            REQUIRE(memory.read(Memory::IRAM0_ul-2) == hi);
-        }
-        SECTION("POP") {
-            Memory memory{prog};
-            const auto ram = memory.IRAM0();
-            std::fill(std::begin(ram), std::end(ram), 0xA5);
-
-            Register16 SP = Memory::IRAM0_ul-2;
-            const auto value = POP(SP, memory);
-
-            REQUIRE(SP == Memory::IRAM0_ul);
-            REQUIRE(compose(value) == 0xA5A5);
-        }
-    }
-    SECTION("JUMP")
-    {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution distrib(0, 0xFFFF);
-
-        SECTION("JP") {
-            const auto offset = distrib(gen);
-            Register16 PC = 0x0;
-            JP(PC, offset);
-            REQUIRE(PC==offset);
-
-            WHEN("NZ Flag") {
-                const auto offset = distrib(gen);
-                Register16 PC = 0x0;
-                Flag_register F=0;
-                JP<NZ>(PC, offset, F);
-                REQUIRE(not (PC==offset));
-
-                F.set_zero();
-                JP<NZ>(PC, offset, F);
-                REQUIRE(PC==offset);
-            }
-            WHEN("C Flag") {
-                const auto offset = distrib(gen);
-                Register16 PC = 0x0;
-                Flag_register F=0;
-                F.set_zero();
-                JP<Z>(PC, offset, F);
-                REQUIRE(not (PC==offset));
-
-                F.clear_zero();
-                JP<Z>(PC, offset, F);
-                REQUIRE(PC==offset);
-            }
-            WHEN("NC Flag") {
-                const auto offset = distrib(gen);
-                Register16 PC = 0x0;
-                Flag_register F=0;
-                JP<NC>(PC, offset, F);
-                REQUIRE(not (PC==offset));
-
-                F.set_carry();
-                JP<NC>(PC, offset, F);
-                REQUIRE(PC==offset);
-            }
-            WHEN("C Flag") {
-                const auto offset = distrib(gen);
-                Register16 PC = 0x0;
-                Flag_register F=0;
-                F.set_carry();
-                JP<C>(PC, offset, F);
-                REQUIRE(not (PC==offset));
-
-                F.clear_carry();
-                JP<C>(PC, offset, F);
-                REQUIRE(PC==offset);
-            }
-        }
-        SECTION("JR") {
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::uniform_int_distribution distrib(-128, 111);
-            Register16 PC = 0x16;
-
-            const std::int8_t offset = distrib(gen);
-            JR(PC, offset);
-            REQUIRE(PC==static_cast<uint16_t>(offset+0x16));
-
-            WHEN("NZ Flag") {
-                const std::int8_t offset = distrib(gen);
-                Register16 PC = 0x16;
-                Flag_register F=0;
-                JR<NZ>(PC, offset, F);
-                REQUIRE(not (PC==static_cast<uint16_t>(offset+0x16)));
-
-                PC = 0x16;
-                F.set_zero();
-                JR<NZ>(PC, offset, F);
-                REQUIRE(PC==static_cast<uint16_t>(offset+0x16));
-            }
-            WHEN("C Flag") {
-                const std::int8_t offset= distrib(gen);
-                Register16 PC = 0x16;
-                Flag_register F=0;
-                F.set_zero();
-                JR<Z>(PC, offset, F);
-                REQUIRE(not (PC==static_cast<uint16_t>(offset+0x16)));
-
-                PC = 0x16;
-                F.clear_zero();
-                JR<Z>(PC, offset, F);
-                REQUIRE(PC==static_cast<uint16_t>(offset+0x16));
-            }
-            WHEN("NC Flag") {
-                const std::int8_t offset= distrib(gen);
-                Register16 PC = 0x16;
-                Flag_register F=0;
-                JR<NC>(PC, offset, F);
-                REQUIRE(not (PC==static_cast<uint16_t>(offset+0x16)));
-
-                PC = 0x16;
-                F.set_carry();
-                JR<NC>(PC, offset, F);
-                REQUIRE(PC==static_cast<uint16_t>(offset+0x16));
-            }
-            WHEN("C Flag") {
-                const std::int8_t offset= distrib(gen);
-                Register16 PC = 0x16;
-                Flag_register F=0;
-                F.set_carry();
-                JR<C>(PC, offset, F);
-                REQUIRE(not (PC==static_cast<uint16_t>(offset+0x16)));
-
-                PC = 0x16;
-                F.clear_carry();
-                JR<C>(PC, offset, F);
-                REQUIRE(PC==static_cast<uint16_t>(offset+0x16));
-            }
-        }
-    }
-}
+//TEST_CASE("LOAD_INSTRUCTION", "[LOAD]")
+//{
+//    auto prog = std::vector<std::uint8_t>(32_kB, 0xFF);
+//    Memory memory{prog};
+//
+//    SECTION("LD Register8 to Register")
+//    {
+//        Register8 source = 0xA5;
+//        Register8 destination = LD(source);
+//        REQUIRE(destination == source);
+//    }
+//    SECTION("LD Register8 to Memory")
+//    {
+//        Register16 source = 0x0000;
+//        Register8 destination = LD(source, memory);
+//        REQUIRE(destination == 0xFF);
+//    }
+//    SECTION("LD Register8 16 value")
+//    {
+//        Register16 source = 0xA55A;
+//        auto [hi, lo] = decompose(LD(source));
+//        REQUIRE(lo == 0x5A);
+//        REQUIRE(hi == 0xA5);
+//    }
+//}
+//TEST_CASE("Control_Flow_INSTRUCTION", "[CF]") {
+//    SECTION("Direct Stack Manipulation i.e. PUSH/POP") {
+//        std::random_device rd;
+//        std::mt19937 gen(rd());
+//        std::uniform_int_distribution distrib(0, 0xFFFF);
+//        auto prog = std::vector<std::uint8_t>(32_kB, 0xFF);
+//
+//        SECTION("PUSH") {
+//            Memory memory{prog};
+//            const auto ram = memory.IRAM0();
+//            std::fill(std::begin(ram), std::end(ram), 0xFFFF);
+//
+//            Register16 SP = Memory::IRAM0_ul;
+//            const Register16 value = distrib(gen);
+//            const auto [hi, lo] = decompose(value);
+//            PUSH(SP, memory, value);
+//
+//            REQUIRE(SP == Memory::IRAM0_ul-2);
+//            REQUIRE(memory.read(Memory::IRAM0_ul-1) == lo);
+//            REQUIRE(memory.read(Memory::IRAM0_ul-2) == hi);
+//        }
+//        SECTION("POP") {
+//            Memory memory{prog};
+//            const auto ram = memory.IRAM0();
+//            std::fill(std::begin(ram), std::end(ram), 0xA5);
+//
+//            Register16 SP = Memory::IRAM0_ul-2;
+//            const auto value = POP(SP, memory);
+//
+//            REQUIRE(SP == Memory::IRAM0_ul);
+//            REQUIRE(compose(value) == 0xA5A5);
+//        }
+//    }
+//    SECTION("JUMP")
+//    {
+//        std::random_device rd;
+//        std::mt19937 gen(rd());
+//        std::uniform_int_distribution distrib(0, 0xFFFF);
+//
+//        SECTION("JP") {
+//            const auto offset = distrib(gen);
+//            Register16 PC = 0x0;
+//            JP(PC, offset);
+//            REQUIRE(PC==offset);
+//
+//            WHEN("NZ Flag") {
+//                const auto offset = distrib(gen);
+//                Register16 PC = 0x0;
+//                Flag_register F=0;
+//                JP<NZ>(PC, offset, F);
+//                REQUIRE(not (PC==offset));
+//
+//                F.set_zero();
+//                JP<NZ>(PC, offset, F);
+//                REQUIRE(PC==offset);
+//            }
+//            WHEN("C Flag") {
+//                const auto offset = distrib(gen);
+//                Register16 PC = 0x0;
+//                Flag_register F=0;
+//                F.set_zero();
+//                JP<Z>(PC, offset, F);
+//                REQUIRE(not (PC==offset));
+//
+//                F.clear_zero();
+//                JP<Z>(PC, offset, F);
+//                REQUIRE(PC==offset);
+//            }
+//            WHEN("NC Flag") {
+//                const auto offset = distrib(gen);
+//                Register16 PC = 0x0;
+//                Flag_register F=0;
+//                JP<NC>(PC, offset, F);
+//                REQUIRE(not (PC==offset));
+//
+//                F.set_carry();
+//                JP<NC>(PC, offset, F);
+//                REQUIRE(PC==offset);
+//            }
+//            WHEN("C Flag") {
+//                const auto offset = distrib(gen);
+//                Register16 PC = 0x0;
+//                Flag_register F=0;
+//                F.set_carry();
+//                JP<C>(PC, offset, F);
+//                REQUIRE(not (PC==offset));
+//
+//                F.clear_carry();
+//                JP<C>(PC, offset, F);
+//                REQUIRE(PC==offset);
+//            }
+//        }
+//        SECTION("JR") {
+//            std::random_device rd;
+//            std::mt19937 gen(rd());
+//            std::uniform_int_distribution distrib(-128, 111);
+//            Register16 PC = 0x16;
+//
+//            const std::int8_t offset = distrib(gen);
+//            JR(PC, offset);
+//            REQUIRE(PC==static_cast<uint16_t>(offset+0x16));
+//
+//            WHEN("NZ Flag") {
+//                const std::int8_t offset = distrib(gen);
+//                Register16 PC = 0x16;
+//                Flag_register F=0;
+//                JR<NZ>(PC, offset, F);
+//                REQUIRE(not (PC==static_cast<uint16_t>(offset+0x16)));
+//
+//                PC = 0x16;
+//                F.set_zero();
+//                JR<NZ>(PC, offset, F);
+//                REQUIRE(PC==static_cast<uint16_t>(offset+0x16));
+//            }
+//            WHEN("C Flag") {
+//                const std::int8_t offset= distrib(gen);
+//                Register16 PC = 0x16;
+//                Flag_register F=0;
+//                F.set_zero();
+//                JR<Z>(PC, offset, F);
+//                REQUIRE(not (PC==static_cast<uint16_t>(offset+0x16)));
+//
+//                PC = 0x16;
+//                F.clear_zero();
+//                JR<Z>(PC, offset, F);
+//                REQUIRE(PC==static_cast<uint16_t>(offset+0x16));
+//            }
+//            WHEN("NC Flag") {
+//                const std::int8_t offset= distrib(gen);
+//                Register16 PC = 0x16;
+//                Flag_register F=0;
+//                JR<NC>(PC, offset, F);
+//                REQUIRE(not (PC==static_cast<uint16_t>(offset+0x16)));
+//
+//                PC = 0x16;
+//                F.set_carry();
+//                JR<NC>(PC, offset, F);
+//                REQUIRE(PC==static_cast<uint16_t>(offset+0x16));
+//            }
+//            WHEN("C Flag") {
+//                const std::int8_t offset= distrib(gen);
+//                Register16 PC = 0x16;
+//                Flag_register F=0;
+//                F.set_carry();
+//                JR<C>(PC, offset, F);
+//                REQUIRE(not (PC==static_cast<uint16_t>(offset+0x16)));
+//
+//                PC = 0x16;
+//                F.clear_carry();
+//                JR<C>(PC, offset, F);
+//                REQUIRE(PC==static_cast<uint16_t>(offset+0x16));
+//            }
+//        }
+//    }
+//}

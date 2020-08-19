@@ -54,7 +54,8 @@ template <Unsigned T> constexpr auto set_bit(T &val, size_t pos) noexcept -> voi
 	val |= (0x1 << pos);
 }
 
-template <Unsigned T> [[nodiscard]] constexpr auto set_bit(T val, size_t pos, T content) noexcept -> T
+template <Unsigned T>
+[[nodiscard]] constexpr auto set_bit(T val, size_t pos, T content) noexcept -> T
 {
 	const std::uint8_t mask = ~(1 << pos);
 	return (val & mask) | (content << pos);
