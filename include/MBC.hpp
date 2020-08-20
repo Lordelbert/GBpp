@@ -41,13 +41,11 @@ class Simple_MBC {
 	std::span<std::uint8_t> m_memory_view;
 
   public:
-	constexpr Simple_MBC() = default;
+	constexpr Simple_MBC() = delete;
 	template <typename Iter>
-	constexpr Simple_MBC(const Iter begin, const Iter end, size_t ram)
-	    : m_memory_view(begin, end)
+	constexpr Simple_MBC(const Iter begin, const Iter end) : m_memory_view(begin, end)
 	{
-		const auto rom = std::distance(begin, end);
-		if(rom >= 16_kB or ram >= 8_kB) {
+		if(std::distance(begin, end) > 64_kB) {
 			throw std::invalid_argument("Either program is too big or ram");
 		}
 	}
@@ -107,31 +105,31 @@ class Simple_MBC {
 class MBC1 {
 	std::uint8_t m_bank_selector = 0b1;
 	bool m_ramg_enable = 0;
-	std::vector<std::uint8_t> m_memory;
+        // TODO move rom and ram size as template parameter ?
+        size_t m_ram;
+	std::span<std::uint8_t> m_memory;
 	using MBC1_Partition = Partition<std::uint8_t, 64_kB, 8_kB>;
 	MBC1_Partition m_memory_partition;
 
 	std::random_device m_rd;
 	mutable std::mt19937 m_gen;
 	mutable std::uniform_int_distribution<std::uint8_t> m_distrib;
-	friend class Memory;
 
   public:
 	// TODO cleanup, a bit messy
 	template <typename Iter>
 	explicit MBC1(const Iter begin, const Iter end, size_t rom, size_t ram)
-	    : m_memory([begin, end, ram, rom] {
-		      std::vector<std::uint8_t> tmp(68_kB + ram - 8_kB + rom - 16_kB, 0x00);
-		      std::move(begin, end, tmp.begin());
-		      return tmp;
-	      }()),
+	    : m_ram(ram), m_memory(begin, end),
 	      m_memory_partition(m_memory.begin(), m_memory.end(),
 	                         MBC1_Partition::descriptor{4, rom - 16_kB},
 	                         MBC1_Partition::descriptor{6, ram - 8_kB}),
 	      m_rd(), m_gen(m_rd()), m_distrib(0, 255)
 	{
-		if(rom > 2_MB or ram > 32_kB) {
-			throw std::invalid_argument("Either program is too big or ram");
+		if(rom> 2_MB or ram > 32_kB or
+                   (rom<=512_kB and ram > 32_kB) or
+                   (rom>=1_MB and rom <= 2_MB and ram>8_kB))
+                {
+			throw std::invalid_argument("Either program or ram is too big");
 		}
 		// after rom 8kB of Vram follow by swi ram
 		const auto ram_offset = rom + 8_kB;
@@ -142,96 +140,17 @@ class MBC1 {
 	auto reg1() const -> uint8_t { return m_bank_selector & 0b1'1111; }
 	auto reg2() const -> uint8_t { return (m_bank_selector & 0b0110'0000) >> 5; }
 	auto reg1_2() const -> uint8_t { return m_bank_selector & 0b111'1111; }
-	// TODO change nbr with enum to make code more explicit
-	auto swap_bank_rom_high()
-	{
-		for(size_t i = 0; i < 2; ++i) {
-			MBC1_Partition::section mem_part{
-			    &m_memory[reg1_2() * 16_kB + i * 8_kB],
-			    &m_memory[reg1_2() * 16_kB + i * 8_kB + 8_kB]};
-			m_memory_partition.swap(i + 2, std::move(mem_part));
-		}
-		return;
-	}
-	auto swap_bank_rom_low()
-	{
-		const size_t addr = (mode()) ? (reg2() << 5) * 16_kB : 0b0;
-		for(size_t i = 0; i < 2; ++i) {
-			MBC1_Partition::section mem_part{&m_memory[addr + i * 8_kB],
-			                                 &m_memory[addr + i * 8_kB + 8_kB]};
-			m_memory_partition.swap(i, std::move(mem_part));
-		}
-		return;
-	}
-	auto swap_bank_ram()
-	{
-		const size_t addr = (mode()) ? reg2() * 8_kB : 0b0;
-		MBC1_Partition::section mem_part{&m_memory[addr], &m_memory[addr + 8_kB]};
-		m_memory_partition.swap(5, std::move(mem_part));
-		return;
-	}
-	auto ramg_enable(std::uint8_t value) noexcept -> void
-	{
-		m_ramg_enable = ((value & 0x0F) == 0x0A) ? true : false;
-	}
-	auto bank_reg1(std::uint8_t value) noexcept -> void
-	{
-		const std::uint8_t _val = (value & 0b0001'1111);
-		m_bank_selector = (m_bank_selector & 0b1110'0000) | ((_val == 0) ? 0b1 : _val);
-		swap_bank_rom_high();
-	}
-	// note can also be used for bank in ram :
-	auto bank_reg2(std::uint8_t value) noexcept -> void
-	{
-		m_bank_selector = (m_bank_selector & 0b1001'1111) | ((value & 0b11) << 5);
-		swap_bank_rom_high();
-		swap_bank_rom_low();
-		swap_bank_ram();
-	}
-	auto bank_mode(std::uint8_t value) noexcept -> void
-	{
-		m_bank_selector =
-		    set_bit(m_bank_selector, 7, static_cast<std::uint8_t>(value & 0b1));
-		swap_bank_rom_high();
-		swap_bank_rom_low();
-		swap_bank_ram();
-	}
-	[[nodiscard]] auto read(std::uint16_t addr) const noexcept -> std::uint8_t
-	{
-		if(addr >= SWI_RAM_base and addr < SWI_RAM_ul) {
-			return (m_ramg_enable) ? m_memory_partition[addr] : m_distrib(m_gen);
-		}
-		return m_memory_partition[addr];
-	}
 
-	auto write(std::uint16_t addr, std::uint8_t value) noexcept -> void
-	{
-		if(addr < IROM1_ul) {
-			if(addr < 0x2000) {
-				ramg_enable(value);
-				return;
-			}
-			if(addr < 0x4000) {
-				bank_reg1(value);
-				return;
-			}
-			if(addr < 0x6000) {
-				bank_reg2(value);
-				return;
-			}
-			if(addr < 0x8000) {
-				bank_mode(value);
-				return;
-			}
-		}
-		if(addr >= SWI_RAM_base and addr < SWI_RAM_ul) {
-			if(m_ramg_enable) {
-				m_memory_partition[addr] = value;
-			}
-		}
-		m_memory_partition[addr] = value;
-		return;
-	}
+	auto swap_bank_rom_high();
+	auto swap_bank_rom_low();
+	auto swap_bank_ram();
+	auto ramg_enable(std::uint8_t value) noexcept -> void;
+	auto bank_reg1(std::uint8_t value) noexcept -> void;
+	// note can also be used for bank in ram :
+	auto bank_reg2(std::uint8_t value) noexcept -> void;
+	auto bank_mode(std::uint8_t value) noexcept -> void;
+	[[nodiscard]] auto read(std::uint16_t addr) const noexcept -> std::uint8_t;
+	auto write(std::uint16_t addr, std::uint8_t value) noexcept -> void;
 };
 
 #endif

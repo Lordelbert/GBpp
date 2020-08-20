@@ -31,6 +31,7 @@ template <typename MBC>
 using Tag_to_MBC_convert_t = typename Tag_to_MBC_convert<MBC>::type;
 
 class Memory {
+	std::vector<std::uint8_t> m_memory;
 	std::variant<Simple_MBC, MBC1> m_policy_rw;
 
 	inline static constexpr std::array<std::uint8_t, 47> Scrolling_Nintendo_Graphic{
@@ -58,9 +59,14 @@ class Memory {
 	Memory() = delete;
 
 	template <typename Memory_Policy_tag>
-	Memory(Memory_Policy_tag, std::initializer_list<std::uint8_t> &&rom, size_t ram)
-	try : m_policy_rw(Tag_to_MBC_convert_t<Memory_Policy_tag>(rom.begin(), rom.end(),
-	                                                          ram)) {
+	Memory(Memory_Policy_tag, std::vector<std::uint8_t> rom, size_t ram)
+	try : m_memory([&rom, ram] {
+		std::vector<std::uint8_t> tmp(64_kB, 0x00);
+		std::move(rom.begin(), rom.end(), tmp.begin());
+		return tmp;
+	}()),
+	      m_policy_rw(Tag_to_MBC_convert_t<Memory_Policy_tag>(m_memory.begin(),
+	                                                          m_memory.end())) {
 	}
 	catch(...) {
 	}

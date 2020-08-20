@@ -20,18 +20,28 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 			// MBC1 handle up to 2MB of ROM and 256 of RAM
 			WHEN("Program is too big")
 			{
-				auto prog = std::vector<std::uint8_t>(3_MB, 0xFF);
+				auto rom = std::vector<std::uint8_t>(3_MB, 0xFF);
 				THEN("Constructor throw")
 				{
-					CHECK_THROWS(MBC1(std::begin(prog), std::end(prog), 3_MB, 256_kB));
+					auto tmp = [&rom] {
+						std::vector<std::uint8_t> tmp(64_kB + 3_MB + 32_kB, 0x00);
+						std::move(rom.begin(), rom.end(), tmp.begin());
+						return tmp;
+					}();
+					CHECK_THROWS(MBC1(std::begin(tmp), std::end(tmp), 3_MB, 8_kB));
 				}
 			}
 			WHEN("Too much RAM is required")
 			{
-				auto prog = std::vector<std::uint8_t>(2_MB, 0xFF);
+				auto rom = std::vector<std::uint8_t>(2_MB, 0xFF);
 				THEN("Constructor throw")
 				{
-					CHECK_THROWS(MBC1(std::begin(prog), std::end(prog), 2_MB, 512_kB));
+					auto tmp = [&rom] {
+						std::vector<std::uint8_t> tmp(64_kB + 2_MB + 512_kB, 0x00);
+						std::move(rom.begin(), rom.end(), tmp.begin());
+						return tmp;
+					}();
+					CHECK_THROWS(MBC1(std::begin(tmp), std::end(tmp), 512_kB, 256_kB));
 				}
 			}
 		}
@@ -44,8 +54,13 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 				std::mt19937 gen(rd());
 				std::uniform_int_distribution ramg_enable(0, 0x1FFF);
 
-				auto rom = std::vector<std::uint8_t>(2_MB, 0xFF);
-				auto memory = MBC1(std::begin(rom), std::end(rom), 2_MB, 32_kB);
+				auto rom = std::vector<std::uint8_t>(512_kB, 0xFF);
+				auto tmp = [&rom] {
+					std::vector<std::uint8_t> tmp(64_kB + 512_kB + 32_kB, 0x00);
+					std::move(rom.begin(), rom.end(), tmp.begin());
+					return tmp;
+				}();
+				auto memory = MBC1(tmp.begin(), tmp.end(), 512_kB, 32_kB);
 
 				WHEN("write/read back: RAM enable")
 				{
@@ -62,9 +77,9 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 					REQUIRE(memory.read(0xA000) == 0xA5);
 					memory.write(mode_addr(gen), 0b1);
 					memory.write(mbc2_addr(gen), 0b10);
-                                        // TODO change this
-                                        // may fail, since ram is random so we might have 0xA5
-					REQUIRE(not (memory.read(0xA000) == 0xA5));
+					// TODO change this
+					// may fail, since ram is random so we might have 0xA5
+					REQUIRE(not(memory.read(0xA000) == 0xA5));
 				}
 
 				WHEN("write/read back: RAM disable [stat test may fail][not stable]")
@@ -96,7 +111,12 @@ TEST_CASE("Memory controller test", "[MBC TEST]")
 				std::fill(&rom[0x084000], &rom[0x88000], 0xFE);
 				std::fill(&rom[0x1FC000], &rom[0x200000], 0x5A);
 
-				auto memory = MBC1(std::begin(rom), std::end(rom), 2_MB, 32_kB);
+				auto tmp = [&rom] {
+					std::vector<std::uint8_t> tmp(64_kB + 2_MB + 8_kB, 0x00);
+					std::move(rom.begin(), rom.end(), tmp.begin());
+					return tmp;
+				}();
+				auto memory = MBC1(tmp.begin(), tmp.end(), 2_MB, 8_kB);
 
 				WHEN("Reading bank 0 and MODE is not set")
 				{
