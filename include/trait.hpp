@@ -1,8 +1,13 @@
 #ifndef __TRAIT_HPP__
 #define __TRAIT_HPP__
 #include <include_std.hpp>
+#include <type_traits>
 
 template <typename T> concept Unsigned = std::is_integral_v<T> && !std::is_signed_v<T>;
+template <typename T> concept Integral = std::is_integral<T>::value;
+
+template <typename Fct, typename... Args>
+concept Callable = std::is_invocable_v<Fct, Args...>;
 
 template <Unsigned T> struct Overflow_trait {
 };

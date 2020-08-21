@@ -2,9 +2,9 @@
 #define __BIT_MANIPULATION_HPP__
 #include "include_std.hpp"
 #include "trait.hpp"
-#include <utility>
 
-template <Unsigned T> constexpr auto get_bit(T val, size_t pos) noexcept -> std::uint8_t
+template <Unsigned T>
+constexpr auto get_bit(T val, std::size_t pos) noexcept -> std::uint8_t
 {
 	return (val >> pos) & 0b1;
 }
@@ -54,7 +54,8 @@ template <Unsigned T> constexpr auto set_bit(T &val, size_t pos) noexcept -> voi
 	val |= (0x1 << pos);
 }
 
-template <Unsigned T> constexpr auto set_bit(T val, size_t pos, T content) noexcept -> T
+template <Unsigned T>
+[[nodiscard]] constexpr auto set_bit(T val, size_t pos, T content) noexcept -> T
 {
 	const std::uint8_t mask = ~(1 << pos);
 	return (val & mask) | (content << pos);

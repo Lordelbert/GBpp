@@ -4,10 +4,6 @@
 #include "include_std.hpp"
 #include "memory.hpp"
 #include "trait.hpp"
-#include <compare>
-#include <cstdint>
-#include <optional>
-#include <type_traits>
 
 namespace ISA {
 enum FLAG : uint8_t { NZ, Z, NC, C };
@@ -179,14 +175,24 @@ template <Unsigned T> constexpr auto INC(T source, Flag_register &F) noexcept ->
 	if(tmp == 0) F.set_zero();
 	return tmp;
 }
-
 constexpr auto INC(Register16 source, Flag_register &F, const Memory &memory) noexcept
     -> Register8
 {
 	F.clear_substract();
 	if(((source & 0b1111) + (0b1)) > 0b1111) F.set_half_carry();
 
-	const Register16 tmp = memory[source] + 1;
+	const Register8 tmp = (memory.read(source)) + 1;
+	if(tmp == 0) F.set_zero();
+	return tmp;
+}
+
+constexpr auto DEC(Register16 source, Flag_register &F, const Memory &memory) noexcept
+    -> Register8
+{
+	F.clear_substract();
+	if(((source & 0b1111) + (0b1)) > 0b1111) F.set_half_carry();
+
+	const Register16 tmp = (memory.read(source)) - 1;
 	if(tmp == 0) F.set_zero();
 	return tmp;
 }
@@ -198,17 +204,6 @@ template <Unsigned T> constexpr auto DEC(T source, Flag_register &F) noexcept ->
 	const T tmp = source - 1;
 	if(tmp == 0) F.set_zero();
 	F.set_substract();
-	return tmp;
-}
-
-constexpr auto DEC(Register16 source, Flag_register &F, const Memory &memory) noexcept
-    -> Register8
-{
-	F.clear_substract();
-	if(((source & 0b1111) + (0b1)) > 0b1111) F.set_half_carry();
-
-	const Register16 tmp = memory[source] - 1;
-	if(tmp == 0) F.set_zero();
 	return tmp;
 }
 
@@ -350,6 +345,7 @@ constexpr auto double_dabble(Register8 A) noexcept -> std::pair<uint8_t, bool>
 	return std::make_pair(result, false);
 }
 constexpr auto DAA(Register8 A, Flag_register &F) -> Register8
+// TODO fix flag
 {
 	auto [result, C] = double_dabble(A);
 	F.set_carry(C);
@@ -358,28 +354,27 @@ constexpr auto DAA(Register8 A, Flag_register &F) -> Register8
 /*************************** Memory *********************************/
 constexpr auto LD(Register8 source) noexcept -> Register8 { return source; }
 template <class HL_Policy>
-constexpr auto LD(Register16 source, const Memory &memory,
-                  Register_bank &reg_bank) noexcept -> std::uint8_t
+auto LD(Register16 source, const Memory &memory, Register_bank &reg_bank) noexcept
+    -> std::uint8_t
 {
 	HL_Policy{}(reg_bank);
-	return memory[source];
+	return memory.read(source);
 }
 
 template <class HL_Policy>
-constexpr auto LD(Register16 source, Register_bank &reg_bank) noexcept -> std::uint8_t
+constexpr auto LD(Register16 source, Register_bank &reg_bank) noexcept
 {
 	HL_Policy{}(reg_bank);
 	return source;
 }
 constexpr auto LD(Register16 source, const Memory &memory) noexcept -> std::uint8_t
 {
-	return memory[source];
+	return memory.read(source);
 }
 constexpr auto LDH(Imm8 value, const Memory &memory) noexcept -> std::uint8_t
 {
-	return memory[compose(static_cast<uint8_t>(0xFF), value)];
+	return memory.read(compose(static_cast<uint8_t>(0xFF), value));
 }
-
 
 constexpr auto LD(Register16 source) noexcept -> std::uint16_t { return source; }
 constexpr auto LD(Register16 source, Imm8 imm) noexcept
@@ -431,36 +426,21 @@ constexpr auto JR(Register16 &PC, Imm8_s add, Flag_register F) noexcept -> void
 }
 constexpr auto _dec(Register16 &value) noexcept { return --value; }
 constexpr auto _inc(Register16 &value) noexcept { return ++value; }
+
 constexpr auto PUSH(Register16 &SP, Memory &memory, Register16 value) noexcept -> void
 {
-	std::tie(memory[_dec(SP)], memory[_dec(SP)]) = decompose(value);
+	const auto [hi, lo] = decompose(value);
+	memory.write(_dec(SP), hi);
+	memory.write(_dec(SP), lo);
+	return;
 }
 
 constexpr auto POP(Register16 &SP, const Memory &memory) noexcept
     -> std::pair<std::uint8_t, std::uint8_t>
 {
-	const auto val = std::make_pair(memory[SP], memory[_inc(SP)]);
+	const auto val = std::make_pair(memory.read(SP), memory.read(_inc(SP)));
 	++SP;
 	return val;
-}
-
-constexpr auto RET(Register16 &PC, Register16 &SP, const Memory &memory) noexcept -> void
-{
-	PC = compose(POP(SP, memory));
-}
-
-template <FLAG cc>
-constexpr auto RET(Register16 &PC, Register16 &SP, Flag_register F,
-                   const Memory &memory) noexcept -> void
-{
-	if constexpr(cc == Z)
-		if(not F.zero()) return RET(PC, SP, memory);
-	if constexpr(cc == C)
-		if(not F.carry()) return RET(PC, SP, memory);
-	if constexpr(cc == NZ)
-		if(F.zero()) return RET(PC, SP, memory);
-	if constexpr(cc == NC)
-		if(F.carry()) return RET(PC, SP, memory);
 }
 constexpr auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory) noexcept
     -> void
@@ -470,18 +450,20 @@ constexpr auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory) 
 }
 
 template <FLAG cc>
-constexpr auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory,
-                    Flag_register F) noexcept -> void
+auto CALL(Register16 &PC, Register16 &SP, Imm16 addr, Memory &memory,
+          Flag_register F) noexcept -> void
 {
 	if constexpr(cc == NC)
-		if(not F.zero()) return CALL(PC, SP, addr, memory);
+		if(not F.zero()) CALL(PC, SP, addr, memory);
 	if constexpr(cc == C)
-		if(not F.carry()) return CALL(PC, SP, addr, memory);
+		if(not F.carry()) CALL(PC, SP, addr, memory);
 	if constexpr(cc == NZ)
-		if(F.zero()) return CALL(PC, SP, addr, memory);
+		if(F.zero()) CALL(PC, SP, addr, memory);
 	if constexpr(cc == NC)
-		if(F.carry()) return CALL(PC, SP, addr, memory);
+		if(F.carry()) CALL(PC, SP, addr, memory);
+	return;
 }
+
 constexpr auto RST(Register16 &PC, Register16 &SP, Imm8 addr, Memory &memory) noexcept
     -> void
 {
@@ -492,29 +474,29 @@ constexpr auto RET(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> v
 {
 	return JP(PC, compose(POP(SP, memory)));
 }
-
 template <FLAG cc>
-constexpr auto RET(Register16 &PC, Register16 &SP, Memory &memory,
-                   Flag_register F) noexcept -> void
+auto RET(Register16 &PC, Register16 &SP, Memory &memory, Flag_register F) noexcept -> void
 {
 	if constexpr(cc == NC)
-		if(not F.zero()) return RET(PC, SP, memory);
+		if(not F.zero()) RET(PC, SP, memory);
 	if constexpr(cc == C)
-		if(not F.carry()) return RET(PC, SP, memory);
+		if(not F.carry()) RET(PC, SP, memory);
 	if constexpr(cc == NZ)
-		if(F.zero()) return RET(PC, SP, memory);
+		if(F.zero()) RET(PC, SP, memory);
 	if constexpr(cc == NC)
-		if(F.carry()) return RET(PC, SP, memory);
+		if(F.carry()) RET(PC, SP, memory);
+	return;
 }
 
 constexpr auto EI(Memory &memory) noexcept -> void
 {
-	memory.INTERUPT_ENABLE_REGISTER()[0] = true;
+	memory.write_IME(0x1F);
+	return;
 }
-
 constexpr auto DI(Memory &memory) noexcept -> void
 {
-	memory.INTERUPT_ENABLE_REGISTER()[0] = false;
+	memory.write_IME(0b0);
+	return;
 }
 constexpr auto RETI(Register16 &PC, Register16 &SP, Memory &memory) noexcept -> void
 {

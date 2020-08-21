@@ -1,13 +1,19 @@
 #ifndef __CLOCK_HPP__
 #define __CLOCK_HPP__
+
+#include "Coroutine.hpp"
 #include "include_std.hpp"
+#include "trait.hpp"
+
 #include <chrono>
-#include <coroutine>
 #include <ctime>
 #include <iostream>
+
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
+#include <type_traits>
 #include <unistd.h>
+
 class Clock_domain {
   public:
 	Clock_domain(double sec) : _clock_domain(sec) { _clock_domain.start_timer(); }
@@ -113,38 +119,14 @@ class Scheduler {
 	std::vector<Clock_domain *> _timer;
 	int _efd;
 };
-// empty task needed by coroutine framework
-// Indeeed when resuming to the caller with co_await we need to return
-// a type with a promise_type here it is void type.
-struct Void_task {
-	// needed for co_await promise type
-	struct promise_type {
-		Void_task get_return_object() { return {}; }
-		auto initial_suspend() { return std::suspend_never{}; }
-		auto final_suspend() { return std::suspend_never{}; }
-		void return_void() {}
-		void unhandled_exception() {}
-	};
-};
 
-// TODO Constexpr ?
-inline auto make_awaiter(const Clock_domain &clock, int cycle, int promise)
+// clang-format off
+template <unsigned cycle, class Fct, class... Args> requires Callable<Fct, Args...>
+auto await(const Clock_domain &clock, Fct&& f, Args &&... arg)
+                -> task<std::invoke_result_t<Fct, Args...>>
 {
-	return Clock_domain::Awaiter{clock, cycle, promise};
+	co_await Clock_domain::Awaiter{clock, cycle};
+	co_return std::invoke(std::forward<Fct>(f),std::forward<Args>(arg)...);
 }
-inline auto make_awaiter(const Clock_domain &clock, int cycle)
-{
-	return Clock_domain::Awaiter{clock, cycle};
-}
-// return µs result
-constexpr long double operator"" _Mhz(long double frequency)
-{
-	return (frequency == 0) ? 0 : (1e3 / frequency);
-}
-// return µs result
-constexpr long double operator"" _Mhz(unsigned long long int frequency)
-{
-	return (frequency == 0) ? 0 : (1e3 / frequency);
-}
-
+// clang-format on
 #endif
